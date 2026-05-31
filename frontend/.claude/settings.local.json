@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Dell\\\\Downloads\\\\concesionaria-app-corregida\\\\concesionaria-app\\\\frontend\\\\.next\\\\server\\\\chunks\\\\ssr\" | Where-Object { \\(Get-Content $_.FullName -ErrorAction SilentlyContinue\\) -match \"generateStaticParams\" } | Select-Object Name)",
+      "PowerShell($content = Get-Content \"C:\\\\Users\\\\Dell\\\\Downloads\\\\concesionaria-app-corregida\\\\concesionaria-app\\\\frontend\\\\.next\\\\server\\\\chunks\\\\ssr\\\\_06dn~07._.js\" -Raw; $idx = $content.IndexOf\\(\"generateStaticParams\"\\); $content.Substring\\([Math]::Max\\(0,$idx-200\\), [Math]::Min\\(600, $content.Length - [Math]::Max\\(0,$idx-200\\)\\)\\))",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Dell\\\\Downloads\\\\concesionaria-app-corregida\\\\concesionaria-app\\\\frontend\\\\.next\\\\server\\\\chunks\\\\ssr\" | Where-Object { \\(Get-Content $_.FullName -ErrorAction SilentlyContinue\\) -match \"getVehiculoById\" } | Select-Object Name)",
+      "PowerShell($chunks = @\\(\"[root-of-the-server]__0h0_rrr._.js\", \"_07umitm._.js\"\\); foreach \\($c in $chunks\\) { $path = \"C:\\\\Users\\\\Dell\\\\Downloads\\\\concesionaria-app-corregida\\\\concesionaria-app\\\\frontend\\\\.next\\\\server\\\\chunks\\\\ssr\\\\$c\"; if \\(Test-Path $path\\) { $content = Get-Content $path -Raw; if \\($content -match \"generateStaticParams\"\\) { Write-Host \"FOUND in $c\" } else { Write-Host \"NOT FOUND in $c \\(size: $\\($content.Length\\)\\)\" } } })",
+      "PowerShell(Remove-Item *)",
+      "PowerShell($content = Get-Content \"C:\\\\Users\\\\Dell\\\\Downloads\\\\concesionaria-app-corregida\\\\concesionaria-app\\\\frontend\\\\.next\\\\server\\\\chunks\\\\ssr\\\\_06dn~07._.js\" -Raw; Write-Host \"File size: $\\($content.Length\\) chars\"; $content.Substring\\(0, [Math]::Min\\(2000, $content.Length\\)\\))",
+      "Bash(grep *)",
+      "Bash(node -e ' *)"
+    ]
+  }
+}
