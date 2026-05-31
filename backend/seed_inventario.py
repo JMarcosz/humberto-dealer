@@ -103,7 +103,7 @@ def main():
     app = create_app()
     with app.app_context():
         wb = openpyxl.load_workbook(
-            r'C:\Users\Dell\Downloads\Inventario Excel\rrjbjxt.xlsx',
+            r'.\Inventario Excel\rrjbjxt.xlsx',
             read_only=True, data_only=True
         )
         ws = wb.active

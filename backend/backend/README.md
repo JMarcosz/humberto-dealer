@@ -11,19 +11,22 @@ pip install -r requirements.txt
 cp .env.example .env   # completar valores
 ```
 
-## Crear BD
+## Crear BD e inicializar datos
 
 ```bash
-mysql -u root -p < database/schema.sql
-mysql -u root -p concesionaria < database/seed.sql
+# 1. Crear el schema en MySQL (si no existe)
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS concesionaria CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 2. Crear tablas y cargar usuarios de prueba (idempotente)
+python seed.py
 ```
+
+> **Importante:** usar siempre `seed.py` para inicializar la BD.
+> No insertar usuarios directamente con SQL — los passwords deben pasar por bcrypt.
 
 ## Ejecutar
 
 ```bash
-export FLASK_APP=backend
-flask run
-# o
 python run.py
 ```
 
