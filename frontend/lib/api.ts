@@ -13,7 +13,7 @@ import type {
 
 // Servidor usa URL absoluta directa al backend; cliente usa proxy Next.js (para cookies same-origin)
 const API_BASE_URL = typeof window === 'undefined'
-  ? (process.env.BACKEND_URL || 'http://localhost:5001/api')
+  ? (process.env.BACKEND_URL || 'https://humberto-dealer.onrender.com/api')
   : (process.env.NEXT_PUBLIC_API_URL || '/api')
 
 class ApiClient {
