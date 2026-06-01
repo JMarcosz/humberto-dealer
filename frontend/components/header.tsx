@@ -7,6 +7,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Menu, X, User, LogOut, Sun, Moon, BookMarked } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useCurrentUser } from '@/lib/queries'
 
 export function Header() {
@@ -16,12 +17,14 @@ export function Header() {
   const pathname = usePathname()
   const { theme, setTheme } = useTheme()
   const { data: user } = useCurrentUser()
+  const queryClient = useQueryClient()
 
   useEffect(() => { setMounted(true) }, [])
 
   const handleLogout = async () => {
     const { api } = await import('@/lib/api')
     try { await api.logout() } catch {}
+    queryClient.clear()
     router.refresh()
   }
 

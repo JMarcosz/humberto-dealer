@@ -27,7 +27,7 @@ from ..models import db, Vehiculo, Marca, Modelo
 
 log = logging.getLogger(__name__)
 
-GRAPH_URL = "https://graph.facebook.com/v19.0"
+GRAPH_URL = "https://graph.facebook.com/v22.0"
 TZ_RD     = ZoneInfo("America/Santo_Domingo")
 
 # Horario de atención: clave = día semana (0=Lun), valor = (apertura, cierre) en horas
