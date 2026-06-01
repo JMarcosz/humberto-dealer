@@ -33,8 +33,8 @@ def create_app() -> Flask:
     limiter.init_app(app)
 
     # CORS — orígenes permitidos según entorno
-    frontend_url = app.config.get("FRONTEND_URL", "http://localhost:3000")
-    allowed_origins = list({frontend_url, "http://localhost:3000"})
+    frontend_url = app.config.get("FRONTEND_URL", "https://humberto-dealer.vercel.app/")
+    allowed_origins = list({frontend_url, "https://humberto-dealer.vercel.app/"})
     CORS(app, origins=allowed_origins, supports_credentials=True)
 
     # Logging

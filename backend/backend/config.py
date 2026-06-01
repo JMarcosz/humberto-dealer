@@ -40,7 +40,7 @@ class Config:
     GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
     # URL del frontend (para redirecciones OAuth y CORS)
-    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "https://humberto-dealer.vercel.app/")
 
     # Dealer location
     DEALER_LAT   = float(os.getenv("DEALER_LAT", "18.4861"))
