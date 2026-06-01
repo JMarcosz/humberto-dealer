@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { FALLBACK_VEHICLE_IMAGE } from '@/lib/vehicle-images'
 
 interface ImageGalleryProps {
   images: string[]
@@ -13,6 +14,11 @@ interface ImageGalleryProps {
 
 export function ImageGallery({ images, alt }: ImageGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [imgSrcs, setImgSrcs] = useState<string[]>(images)
+
+  const handleError = (index: number) => {
+    setImgSrcs(prev => prev.map((s, i) => i === index ? FALLBACK_VEHICLE_IMAGE : s))
+  }
 
   const goToPrevious = () => {
     setCurrentIndex(prev => (prev === 0 ? images.length - 1 : prev - 1))
@@ -35,12 +41,13 @@ export function ImageGallery({ images, alt }: ImageGalleryProps) {
       {/* Main Image */}
       <div className="relative aspect-[16/10] overflow-hidden rounded-lg bg-muted">
         <Image
-          src={images[currentIndex]}
+          src={imgSrcs[currentIndex]}
           alt={`${alt} - Imagen ${currentIndex + 1}`}
           fill
           className="object-cover"
           priority
           sizes="(max-width: 768px) 100vw, 60vw"
+          onError={() => handleError(currentIndex)}
         />
         
         {/* Navigation Arrows */}
@@ -86,11 +93,12 @@ export function ImageGallery({ images, alt }: ImageGalleryProps) {
               )}
             >
               <Image
-                src={image}
+                src={imgSrcs[index]}
                 alt={`${alt} - Miniatura ${index + 1}`}
                 fill
                 className="object-cover"
                 sizes="96px"
+                onError={() => handleError(index)}
               />
             </button>
           ))}

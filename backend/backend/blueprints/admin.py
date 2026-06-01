@@ -4,10 +4,9 @@ import os
 import uuid
 from datetime import datetime
 from flask import Blueprint, jsonify, request, current_app
-from flask_login import login_required
 from werkzeug.utils import secure_filename
 
-from ..models import db, Vehiculo, Venta, Reserva, Cliente, Pago, VehiculoImagen
+from ..models import db, Vehiculo, Venta, Reserva, Cliente, Pago, VehiculoImagen, Marca, Modelo
 from ..decorators import admin_required
 from ..validators import forzar_mayusculas, validar_mayusculas
 
@@ -22,7 +21,7 @@ log = logging.getLogger(__name__)
 TRANSICIONES_VALIDAS = {
     "DISPONIBLE": {"RESERVADO", "PENDIENTE_VALIDACION"},
     "RESERVADO":  {"DISPONIBLE", "VENDIDO"},
-    "BORRADOR":   {"PENDIENTE_VALIDACION"},
+    "BORRADOR":   {"PENDIENTE_VALIDACION", "DISPONIBLE"},
     "PENDIENTE_VALIDACION": {"DISPONIBLE", "BORRADOR"},
 }
 
@@ -31,23 +30,39 @@ TRANSICIONES_VALIDAS = {
 # GET /api/admin/vehiculos  — lista completa incluyendo borradores
 # ---------------------------------------------------------------
 @bp.get("/vehiculos")
-@login_required
 @admin_required
 def listar_vehiculos_admin():
     try:
         page     = request.args.get("page", 1, type=int)
         estado   = request.args.get("estado")
-        per_page = request.args.get("per_page", 30, type=int)
+        per_page = request.args.get("per_page", 20, type=int)
+        buscar   = request.args.get("buscar", "").strip()
 
-        q = Vehiculo.query
+        q = Vehiculo.query.join(Modelo).join(Marca)
+
         if estado:
-            q = q.filter_by(estado=estado.upper())
+            estado_upper = estado.upper()
+            if estado_upper == "PENDIENTE_VALIDACION":
+                q = q.filter(Vehiculo.estado.in_(["PENDIENTE_VALIDACION", "BORRADOR"]))
+            else:
+                q = q.filter(Vehiculo.estado == estado_upper)
+
+        if buscar:
+            like = f"%{buscar}%"
+            q = q.filter(
+                db.or_(
+                    Marca.nombre.ilike(like),
+                    Modelo.nombre.ilike(like),
+                )
+            )
+
         paginado = q.order_by(Vehiculo.creado_en.desc()).paginate(
-            page=page, per_page=min(per_page, 100), error_out=False
+            page=page, per_page=min(per_page, 500), error_out=False
         )
         return jsonify({
             "total": paginado.total,
             "page":  paginado.page,
+            "pages": paginado.pages,
             "items": [v.to_dict() for v in paginado.items],
         })
     except Exception as exc:
@@ -56,11 +71,54 @@ def listar_vehiculos_admin():
 
 
 # ---------------------------------------------------------------
+# GET /api/admin/vehiculos/ids  — solo IDs que coinciden con filtros
+# ---------------------------------------------------------------
+@bp.get("/vehiculos/ids")
+@admin_required
+def listar_ids_vehiculos():
+    try:
+        estado = request.args.get("estado")
+        buscar = request.args.get("buscar", "").strip()
+
+        q = db.session.query(Vehiculo.id).join(Modelo).join(Marca)
+
+        if estado:
+            estado_upper = estado.upper()
+            if estado_upper == "PENDIENTE_VALIDACION":
+                q = q.filter(Vehiculo.estado.in_(["PENDIENTE_VALIDACION", "BORRADOR"]))
+            else:
+                q = q.filter(Vehiculo.estado == estado_upper)
+
+        if buscar:
+            like = f"%{buscar}%"
+            q = q.filter(db.or_(Marca.nombre.ilike(like), Modelo.nombre.ilike(like)))
+
+        ids = [row[0] for row in q.all()]
+        return jsonify({"ids": ids, "total": len(ids)})
+    except Exception as exc:
+        log.error("listar_ids_vehiculos: %s", exc)
+        return jsonify({"error": "Error interno"}), 500
+
+
+# ---------------------------------------------------------------
+# GET /api/admin/vehiculos/<id>  — ficha individual (incluye borradores)
+# ---------------------------------------------------------------
+@bp.get("/vehiculos/<int:vid>")
+@admin_required
+def get_vehiculo_admin(vid: int):
+    try:
+        v = db.get_or_404(Vehiculo, vid)
+        return jsonify(v.to_dict(include_imagenes=True))
+    except Exception as exc:
+        log.error("get_vehiculo_admin %d: %s", vid, exc)
+        return jsonify({"error": "Error interno"}), 500
+
+
+# ---------------------------------------------------------------
 # PATCH /api/admin/vehiculos/<id>/estado
 # Body: { "estado": "VENDIDO" | "DISPONIBLE" | ... }
 # ---------------------------------------------------------------
 @bp.patch("/vehiculos/<int:vid>/estado")
-@login_required
 @admin_required
 def cambiar_estado(vid: int):
     try:
@@ -70,7 +128,7 @@ def cambiar_estado(vid: int):
         v = db.get_or_404(Vehiculo, vid)
         estados_permitidos = TRANSICIONES_VALIDAS.get(v.estado, set())
 
-        if nuevo_estado not in estados_permitidos | {"VENDIDO"}:
+        if nuevo_estado not in estados_permitidos:
             return jsonify({
                 "error": f"Transición inválida: {v.estado} → {nuevo_estado}"
             }), 422
@@ -95,7 +153,6 @@ def cambiar_estado(vid: int):
 #         "ubicacion_lat", "ubicacion_lng", "ubicacion_desc" }
 # ---------------------------------------------------------------
 @bp.post("/ventas")
-@login_required
 @admin_required
 def confirmar_venta():
     try:
@@ -153,7 +210,6 @@ def confirmar_venta():
 # GET /api/admin/reservas   — todas las reservas con nombres
 # ---------------------------------------------------------------
 @bp.get("/reservas")
-@login_required
 @admin_required
 def listar_reservas_admin():
     try:
@@ -195,7 +251,6 @@ def listar_reservas_admin():
 # GET /api/admin/historico   — histórico de ventas
 # ---------------------------------------------------------------
 @bp.get("/historico")
-@login_required
 @admin_required
 def historico_ventas():
     try:
@@ -206,10 +261,25 @@ def historico_ventas():
             .order_by(Venta.fecha_hora.desc())
             .paginate(page=page, per_page=min(per_page, 100), error_out=False)
         )
+        items = []
+        for v in paginado.items:
+            item = v.to_dict()
+            if v.vehiculo and v.vehiculo.modelo:
+                marca  = v.vehiculo.modelo.marca.nombre if v.vehiculo.modelo.marca else ""
+                modelo = v.vehiculo.modelo.nombre
+                item["vehiculo_nombre"] = f"{marca} {modelo}".strip()
+            else:
+                item["vehiculo_nombre"] = f"Vehículo #{v.vehiculo_id}"
+            if v.cliente:
+                item["cliente_nombre"] = f"{v.cliente.nombre} {v.cliente.apellido}".strip()
+            else:
+                item["cliente_nombre"] = f"Cliente #{v.cliente_id}"
+            item["metodo_pago"] = v.pagos[0].metodo if v.pagos else None
+            items.append(item)
         return jsonify({
             "total": paginado.total,
             "page":  paginado.page,
-            "items": [v.to_dict() for v in paginado.items],
+            "items": items,
         })
     except Exception as exc:
         log.error("historico_ventas: %s", exc)
@@ -220,7 +290,6 @@ def historico_ventas():
 # PATCH /api/admin/vehiculos/<id>  — editar ficha
 # ---------------------------------------------------------------
 @bp.patch("/vehiculos/<int:vid>")
-@login_required
 @admin_required
 def editar_vehiculo(vid: int):
     try:
@@ -252,7 +321,6 @@ def editar_vehiculo(vid: int):
 # Acepta: multipart con 'file'  OR  JSON con { "url": "..." }
 # ---------------------------------------------------------------
 @bp.post("/vehiculos/<int:vid>/imagenes")
-@login_required
 @admin_required
 def agregar_imagen(vid: int):
     try:
@@ -297,7 +365,6 @@ def agregar_imagen(vid: int):
 # DELETE /api/admin/imagenes/<id>
 # ---------------------------------------------------------------
 @bp.delete("/imagenes/<int:iid>")
-@login_required
 @admin_required
 def eliminar_imagen(iid: int):
     try:
@@ -332,7 +399,6 @@ def eliminar_imagen(iid: int):
 # PATCH /api/admin/imagenes/<id>/principal
 # ---------------------------------------------------------------
 @bp.patch("/imagenes/<int:iid>/principal")
-@login_required
 @admin_required
 def set_imagen_principal(iid: int):
     try:

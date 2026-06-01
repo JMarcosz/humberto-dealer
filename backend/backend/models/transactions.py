@@ -147,6 +147,7 @@ class Resena(db.Model):
     creado_en       = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     usuario = db.relationship("Usuario")
+    likes   = db.relationship("ResenaLike", backref="resena", passive_deletes=True)
 
     def to_dict(self) -> dict:
         return {
@@ -157,4 +158,13 @@ class Resena(db.Model):
             "comentario": self.comentario,
             "google_verified": self.google_verified,
             "creado_en": self.creado_en.isoformat(),
+            "likes_count": len(self.likes),
         }
+
+
+class ResenaLike(db.Model):
+    __tablename__ = "resena_likes"
+
+    resena_id  = db.Column(mysql.INTEGER(unsigned=True), db.ForeignKey("resenas.id", ondelete="CASCADE"), primary_key=True)
+    usuario_id = db.Column(mysql.INTEGER(unsigned=True), db.ForeignKey("usuarios.id", ondelete="CASCADE"), primary_key=True)
+    creado_en  = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)

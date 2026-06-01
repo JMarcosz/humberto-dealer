@@ -189,7 +189,7 @@ function FormImagenes({ vehiculoId, onListo }: { vehiculoId: number; onListo: ()
 
   const reload = async () => {
     try {
-      const v = await api.getVehiculo(vehiculoId)
+      const v = await api.getVehiculoAdmin(vehiculoId)
       setImagenes((v as any).imagenes ?? [])
     } catch {}
   }

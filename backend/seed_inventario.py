@@ -1,6 +1,7 @@
 """
 Seed del inventario desde el Excel de Humberto Auto Import.
-Uso: python seed_inventario.py
+Uso: python seed_inventario.py <ruta_al_excel.xlsx>
+     o define la variable de entorno EXCEL_PATH
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -100,10 +101,22 @@ def get_or_create_modelo(marca, nombre, categoria):
 
 def main():
     import openpyxl
+    ruta_excel = (
+        sys.argv[1] if len(sys.argv) > 1
+        else os.environ.get("EXCEL_PATH")
+    )
+    if not ruta_excel:
+        print("Uso: python seed_inventario.py <ruta_al_excel.xlsx>")
+        print("     o define EXCEL_PATH=<ruta> como variable de entorno")
+        sys.exit(1)
+    if not os.path.exists(ruta_excel):
+        print(f"Error: no se encontró '{ruta_excel}'")
+        sys.exit(1)
+
     app = create_app()
     with app.app_context():
         wb = openpyxl.load_workbook(
-            r'.\Inventario Excel\rrjbjxt.xlsx',
+            ruta_excel,
             read_only=True, data_only=True
         )
         ws = wb.active

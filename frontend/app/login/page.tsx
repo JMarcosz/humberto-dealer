@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2, AlertCircle, ArrowLeft } from 'lucide-react'
 import { api } from '@/lib/api'
 
 export default function LoginPage() {
@@ -49,6 +49,12 @@ export default function LoginPage() {
   return (
     <div className="container mx-auto flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-12">
       <Card className="w-full max-w-md">
+        <div className="px-6 pt-5">
+          <Button variant="ghost" size="sm" className="gap-2 -ml-2" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
+            Volver
+          </Button>
+        </div>
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Iniciar Sesión</CardTitle>
           <CardDescription>Ingresa tu email y contraseña para acceder a tu cuenta</CardDescription>

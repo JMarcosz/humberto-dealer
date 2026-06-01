@@ -39,28 +39,28 @@ INSERT INTO modelos (nombre, marca_id, categoria) VALUES
     ('HURACAN EVO', 5, 'COUPE');
 
 -- Vehículos
-INSERT INTO vehiculos (modelo_id, anio, vin, color, precio, kilometraje, combustible, transmision, descripcion, estado, publicado_en) VALUES
-    (1, 2023, 'WBS8M9C50PA123401', 'NEGRO', 85000.00, 1200, 'GASOLINA', 'AUTOMATICA', 'BMW M3 Competition con paquete carbono, 510 HP.', 'DISPONIBLE', NOW()),
-    (2, 2024, 'WBA7R0C02PGJ12345', 'BLANCO ALPINO', 72000.00, 500,  'GASOLINA', 'AUTOMATICA', 'BMW X5 xDrive40i, techo panorámico, sistema HiFi Harman.', 'DISPONIBLE', NOW()),
-    (3, 2022, 'WDD2050471A123456', 'GRIS SELENITA', 95000.00, 8000, 'GASOLINA', 'AUTOMATICA', 'Mercedes C63 AMG Biturbo V8 507 HP.', 'DISPONIBLE', NOW()),
-    (6, 2023, 'WP0AB2A96PS123001', 'PLATA', 145000.00, 200,  'GASOLINA', 'AUTOMATICA', 'Porsche 911 Carrera 4S, PDK, paquete Sport Chrono.', 'DISPONIBLE', NOW()),
-    (7, 2021, 'ZFF89GLA3M0260001', 'ROJO ROSSO CORSA', 285000.00, 3100, 'GASOLINA', 'AUTOMATICA', 'Ferrari F8 Tributo 710 HP, escape Inconel.', 'DISPONIBLE', NOW()),
-    (8, 2022, 'ZHWUC1ZF2NLA12345', 'AMARILLO GIALLO', 240000.00, 1500, 'GASOLINA', 'AUTOMATICA', 'Lamborghini Huracán EVO RWD, ANIMA drive selector.', 'RESERVADO', NOW()),
-    (4, 2023, 'WDD2950461A789012', 'NEGRO OBSIDIANA', 105000.00, 0,   'GASOLINA', 'AUTOMATICA', 'Mercedes GLE 53 AMG 4MATIC+, sin rodar.', 'BORRADOR', NULL),
-    (5, 2024, 'WP1AE2AY5PDA00001', 'AZUL SAPPHIRE', 130000.00, 0,   'GASOLINA', 'AUTOMATICA', 'Porsche Cayenne GTS, paquete Sport Design.', 'PENDIENTE_VALIDACION', NULL);
+-- INSERT INTO vehiculos (modelo_id, anio, vin, color, precio, kilometraje, combustible, transmision, descripcion, estado, publicado_en) VALUES
+--     (1, 2023, 'WBS8M9C50PA123401', 'NEGRO', 85000.00, 1200, 'GASOLINA', 'AUTOMATICA', 'BMW M3 Competition con paquete carbono, 510 HP.', 'DISPONIBLE', NOW()),
+--     (2, 2024, 'WBA7R0C02PGJ12345', 'BLANCO ALPINO', 72000.00, 500,  'GASOLINA', 'AUTOMATICA', 'BMW X5 xDrive40i, techo panorámico, sistema HiFi Harman.', 'DISPONIBLE', NOW()),
+--     (3, 2022, 'WDD2050471A123456', 'GRIS SELENITA', 95000.00, 8000, 'GASOLINA', 'AUTOMATICA', 'Mercedes C63 AMG Biturbo V8 507 HP.', 'DISPONIBLE', NOW()),
+--     (6, 2023, 'WP0AB2A96PS123001', 'PLATA', 145000.00, 200,  'GASOLINA', 'AUTOMATICA', 'Porsche 911 Carrera 4S, PDK, paquete Sport Chrono.', 'DISPONIBLE', NOW()),
+--     (7, 2021, 'ZFF89GLA3M0260001', 'ROJO ROSSO CORSA', 285000.00, 3100, 'GASOLINA', 'AUTOMATICA', 'Ferrari F8 Tributo 710 HP, escape Inconel.', 'DISPONIBLE', NOW()),
+--     (8, 2022, 'ZHWUC1ZF2NLA12345', 'AMARILLO GIALLO', 240000.00, 1500, 'GASOLINA', 'AUTOMATICA', 'Lamborghini Huracán EVO RWD, ANIMA drive selector.', 'RESERVADO', NOW()),
+--     (4, 2023, 'WDD2950461A789012', 'NEGRO OBSIDIANA', 105000.00, 0,   'GASOLINA', 'AUTOMATICA', 'Mercedes GLE 53 AMG 4MATIC+, sin rodar.', 'BORRADOR', NULL),
+--     (5, 2024, 'WP1AE2AY5PDA00001', 'AZUL SAPPHIRE', 130000.00, 0,   'GASOLINA', 'AUTOMATICA', 'Porsche Cayenne GTS, paquete Sport Design.', 'PENDIENTE_VALIDACION', NULL);
 
 -- Imágenes (representativas)
-INSERT INTO vehiculo_imagenes (vehiculo_id, url, es_principal, orden) VALUES
-    (1, 'https://images.unsplash.com/photo-1555215695-3004980ad54e?w=1200&q=80', 1, 0),
-    (1, 'https://images.unsplash.com/photo-1617654112368-307921291f42?w=1200&q=80', 0, 1),
-    (2, 'https://images.unsplash.com/photo-1520050206274-a1ae44613e6d?w=1200&q=80', 1, 0),
-    (4, 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=80', 1, 0),
-    (5, 'https://images.unsplash.com/photo-1592198084033-aade902d1aae?w=1200&q=80', 1, 0);
+-- INSERT INTO vehiculo_imagenes (vehiculo_id, url, es_principal, orden) VALUES
+--     (1, 'https://images.unsplash.com/photo-1555215695-3004980ad54e?w=1200&q=80', 1, 0),
+--     (1, 'https://images.unsplash.com/photo-1617654112368-307921291f42?w=1200&q=80', 0, 1),
+--     (2, 'https://images.unsplash.com/photo-1520050206274-a1ae44613e6d?w=1200&q=80', 1, 0),
+--     (4, 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=80', 1, 0),
+--     (5, 'https://images.unsplash.com/photo-1592198084033-aade902d1aae?w=1200&q=80', 1, 0);
 
--- Imágenes adicionales
-INSERT INTO vehiculo_imagenes (vehiculo_id, url, es_principal, orden) VALUES
-    (3, 'https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=1200&q=80', 1, 0),
-    (6, 'https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=1200&q=80', 1, 0);
+-- -- Imágenes adicionales
+-- INSERT INTO vehiculo_imagenes (vehiculo_id, url, es_principal, orden) VALUES
+--     (3, 'https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=1200&q=80', 1, 0),
+--     (6, 'https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=1200&q=80', 1, 0);
 
 -- Usuarios
 -- Contraseñas en texto plano SOLO para seed/docs. En app se hashean con bcrypt.
@@ -83,22 +83,22 @@ INSERT INTO empleados (usuario_id, nombre, apellido, cedula, cargo) VALUES
 INSERT INTO tipos_cita (nombre) VALUES
     ('PRUEBA DE MANEJO'), ('VALORACION'), ('ENTREGA'), ('MANTENIMIENTO');
 
--- Reserva
-INSERT INTO reservas (vehiculo_id, cliente_id, estado, notas) VALUES
-    (6, 1, 'CONFIRMADA', 'Cliente interesado en financiamiento');
+-- -- Reserva
+-- INSERT INTO reservas (vehiculo_id, cliente_id, estado, notas) VALUES
+--     (6, 1, 'CONFIRMADA', 'Cliente interesado en financiamiento');
 
 -- Venta de prueba
-INSERT INTO ventas (vehiculo_id, cliente_id, empleado_id, precio_final, ubicacion_lat, ubicacion_lng, ubicacion_desc) VALUES
-    (3, 2, 1, 95000.00, 18.4861, -69.9312, 'Sucursal Piantini, Santo Domingo');
+-- INSERT INTO ventas (vehiculo_id, cliente_id, empleado_id, precio_final, ubicacion_lat, ubicacion_lng, ubicacion_desc) VALUES
+--     (3, 2, 1, 95000.00, 18.4861, -69.9312, 'Sucursal Piantini, Santo Domingo');
 
--- Pagos
-INSERT INTO pagos (venta_id, metodo, monto, referencia) VALUES
-    (1, 'TRANSFERENCIA', 95000.00, 'TRF-2024-00001');
+-- -- Pagos
+-- INSERT INTO pagos (venta_id, metodo, monto, referencia) VALUES
+--     (1, 'TRANSFERENCIA', 95000.00, 'TRF-2024-00001');
 
--- Reseñas
-INSERT INTO resenas (usuario_id, estrellas, comentario, google_verified) VALUES
-    (2, 5, 'Servicio impecable. El mejor dealer del país.', 1),
-    (3, 4, 'Excelente atención, proceso de compra muy transparente.', 1);
+-- -- Reseñas
+-- INSERT INTO resenas (usuario_id, estrellas, comentario, google_verified) VALUES
+--     (2, 5, 'Servicio impecable. El mejor dealer del país.', 1),
+--     (3, 4, 'Excelente atención, proceso de compra muy transparente.', 1);
 
 -- Proveedores
 INSERT INTO proveedores (nombre, rnc, telefono, email) VALUES

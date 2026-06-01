@@ -104,7 +104,17 @@ def mis_reservas():
         reservas = Reserva.query.filter_by(cliente_id=cliente.id).order_by(
             Reserva.creado_en.desc()
         ).all()
-        return jsonify([r.to_dict() for r in reservas])
+        items = []
+        for r in reservas:
+            item = r.to_dict()
+            if r.vehiculo and r.vehiculo.modelo:
+                marca  = r.vehiculo.modelo.marca.nombre if r.vehiculo.modelo.marca else ""
+                modelo = r.vehiculo.modelo.nombre
+                item["vehiculo_nombre"] = f"{marca} {modelo}".strip()
+            else:
+                item["vehiculo_nombre"] = f"Vehículo #{r.vehiculo_id}"
+            items.append(item)
+        return jsonify(items)
     except Exception as exc:
         log.error("mis_reservas: %s", exc)
         return jsonify({"error": "Error interno"}), 500

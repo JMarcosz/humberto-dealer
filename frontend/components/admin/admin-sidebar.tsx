@@ -2,7 +2,8 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,6 +26,13 @@ const navItems = [
 
 export function AdminSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    try { await api.logout() } catch {}
+    router.push('/')
+    router.refresh()
+  }
 
   return (
     <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
@@ -71,7 +79,7 @@ export function AdminSidebar() {
             Ver Sitio Público
           </Button>
         </Link>
-        <Button variant="ghost" className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground">
+        <Button variant="ghost" className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground" onClick={handleLogout}>
           <LogOut className="h-4 w-4" />
           Cerrar Sesión
         </Button>

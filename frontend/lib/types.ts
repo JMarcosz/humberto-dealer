@@ -45,6 +45,7 @@ export interface VehiculoAPI {
 
 export interface Vehicle {
   id: string
+  modeloId: number
   marca: string
   modelo: string
   año: number
@@ -95,6 +96,7 @@ export function toVehicle(v: VehiculoAPI): Vehicle {
 
   return {
     id:              String(v.id),
+    modeloId:        v.modelo?.id ?? 0,
     marca:           v.modelo?.marca?.nombre ?? '',
     modelo:          v.modelo?.nombre ?? '',
     año:             v.anio,
@@ -160,8 +162,10 @@ export interface Venta {
   id: number
   vehiculo_id: number
   cliente_id: number
+  vehiculo_nombre?: string
+  cliente_nombre?: string
   precio_final: number
-  metodo_pago: string
+  metodo_pago?: string
   fecha_hora: string
   ubicacion_desc?: string
 }
@@ -174,6 +178,8 @@ export interface Resena {
   usuario_nombre?: string
   comentario?: string
   creado_en: string
+  likes_count: number
+  liked_by_me: boolean
 }
 
 export interface PaginatedResponse<T> {
@@ -191,6 +197,9 @@ export interface VehiculoFilters {
   transmision?: string
   precio_min?: number
   precio_max?: number
+  tipo?: string
+  kilometraje_max?: number
+  busqueda?: string
   estado?: string
   page?: number
   per_page?: number

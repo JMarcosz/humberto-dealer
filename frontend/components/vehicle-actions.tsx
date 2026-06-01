@@ -73,7 +73,7 @@ export function VehicleActions({ vehicleId, whatsappUrl, estado }: VehicleAction
       ) : (
         <Button
           variant="outline"
-          className="w-full gap-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+          className="w-full gap-2 h-11 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
           onClick={handleReservar}
           disabled={reserving}
         >

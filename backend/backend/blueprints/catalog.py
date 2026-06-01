@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from sqlalchemy import and_
 
-from ..models import db, Marca, Modelo, Vehiculo, Resena
+from ..models import db, Marca, Modelo, Vehiculo, Resena, ResenaLike
 from ..decorators import login_required_api
 
 bp = Blueprint("catalog", __name__)
@@ -19,7 +19,15 @@ ESTADOS_PUBLICOS = ("DISPONIBLE", "RESERVADO")
 @bp.get("/marcas")
 def listar_marcas():
     try:
-        marcas = Marca.query.order_by(Marca.nombre).all()
+        marcas = (
+            Marca.query
+            .join(Modelo, Modelo.marca_id == Marca.id)
+            .join(Vehiculo, Vehiculo.modelo_id == Modelo.id)
+            .filter(Vehiculo.estado.in_(ESTADOS_PUBLICOS))
+            .distinct()
+            .order_by(Marca.nombre)
+            .all()
+        )
         return jsonify([m.to_dict() for m in marcas])
     except Exception as exc:
         log.error("listar_marcas: %s", exc)
@@ -67,12 +75,21 @@ def listar_vehiculos():
             filtros.append(Vehiculo.precio >= precio_min)
         if (precio_max := request.args.get("precio_max", type=float)):
             filtros.append(Vehiculo.precio <= precio_max)
+        if (tipo := request.args.get("tipo")):
+            filtros.append(Vehiculo.modelo.has(Modelo.categoria == tipo.upper()))
+        if (km_max := request.args.get("kilometraje_max", type=int)):
+            filtros.append(Vehiculo.kilometraje <= km_max)
+
+        busqueda = request.args.get("busqueda", "").strip()
+        q = Vehiculo.query.join(Modelo).join(Marca).filter(and_(*filtros))
+        if busqueda:
+            like = f"%{busqueda}%"
+            q = q.filter(db.or_(Marca.nombre.ilike(like), Modelo.nombre.ilike(like)))
 
         paginado = (
-            Vehiculo.query
-            .filter(and_(*filtros))
+            q
             .order_by(Vehiculo.publicado_en.desc())
-            .paginate(page=page, per_page=min(per_page, 100), error_out=False)
+            .paginate(page=page, per_page=min(per_page, 500), error_out=False)
         )
 
         return jsonify({
@@ -113,11 +130,13 @@ def listar_resenas(vehiculo_id: int):
             .order_by(Resena.creado_en.desc())
             .all()
         )
+        usuario_id = current_user.id if current_user.is_authenticated else None
         items = []
         for r in resenas:
             item = r.to_dict()
             item["calificacion"]   = r.estrellas
             item["usuario_nombre"] = r.usuario.nombre if r.usuario else "Usuario"
+            item["liked_by_me"]    = any(lk.usuario_id == usuario_id for lk in r.likes) if usuario_id else False
             items.append(item)
         return jsonify(items)
     except Exception as exc:
@@ -152,8 +171,65 @@ def crear_resena(vehiculo_id: int):
         item = resena.to_dict()
         item["calificacion"]   = resena.estrellas
         item["usuario_nombre"] = current_user.nombre
+        item["liked_by_me"]    = False
         return jsonify({"mensaje": "Reseña publicada", "resena": item}), 201
     except Exception as exc:
         db.session.rollback()
         log.error("crear_resena %d: %s", vehiculo_id, exc)
+        return jsonify({"error": "Error interno"}), 500
+
+
+# ---------------------------------------------------------------
+# POST /api/catalogo/vehiculos/<vid>/resenas/<rid>/like  (toggle)
+# ---------------------------------------------------------------
+@bp.post("/vehiculos/<int:vehiculo_id>/resenas/<int:resena_id>/like")
+@login_required_api
+def toggle_like_resena(vehiculo_id: int, resena_id: int):
+    try:
+        resena = db.session.get(Resena, resena_id)
+        if not resena or resena.vehiculo_id != vehiculo_id:
+            return jsonify({"error": "Reseña no encontrada"}), 404
+
+        like = ResenaLike.query.filter_by(
+            resena_id=resena_id, usuario_id=current_user.id
+        ).first()
+
+        if like:
+            db.session.delete(like)
+            liked = False
+        else:
+            db.session.add(ResenaLike(resena_id=resena_id, usuario_id=current_user.id))
+            liked = True
+
+        db.session.commit()
+        db.session.refresh(resena)
+        return jsonify({"liked": liked, "likes_count": len(resena.likes)})
+    except Exception as exc:
+        db.session.rollback()
+        log.error("toggle_like_resena %d: %s", resena_id, exc)
+        return jsonify({"error": "Error interno"}), 500
+
+
+# ---------------------------------------------------------------
+# DELETE /api/catalogo/resenas/<id>  (solo el autor o admin)
+# ---------------------------------------------------------------
+@bp.delete("/resenas/<int:resena_id>")
+@login_required_api
+def eliminar_resena(resena_id: int):
+    try:
+        resena = db.session.get(Resena, resena_id)
+        if not resena:
+            return jsonify({"error": "Reseña no encontrada"}), 404
+
+        es_autor = resena.usuario_id == current_user.id
+        es_admin = current_user.rol and current_user.rol.nombre == "ADMIN"
+        if not es_autor and not es_admin:
+            return jsonify({"error": "Sin permiso"}), 403
+
+        db.session.delete(resena)
+        db.session.commit()
+        return jsonify({"mensaje": "Reseña eliminada"})
+    except Exception as exc:
+        db.session.rollback()
+        log.error("eliminar_resena %d: %s", resena_id, exc)
         return jsonify({"error": "Error interno"}), 500

@@ -127,7 +127,7 @@ export function Hero() {
         className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/25 transition-colors hover:text-orange-500"
         aria-label="Scroll al catálogo"
       >
-        <span className="text-[10px] font-bold tracking-[0.4em] uppercase">Explorar</span>
+        <span className="text-xs font-bold tracking-[0.4em] uppercase">Explorar</span>
         <ChevronDown className="h-4 w-4 animate-bounce" />
       </button>
 

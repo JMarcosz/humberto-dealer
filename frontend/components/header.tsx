@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
-import { Menu, X, User, LogOut, Sun, Moon } from 'lucide-react'
+import { Menu, X, User, LogOut, Sun, Moon, BookMarked } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { Usuario } from '@/lib/types'
 
@@ -73,8 +73,8 @@ export function Header() {
         {/* Nav desktop */}
         <div className="hidden items-center gap-6 md:flex">
           <a
-            href="/"
-            onClick={handleLogoClick}
+            href="/#catalogo-section"
+            onClick={(e) => handleSectionNav(e, 'catalogo-section')}
             className="text-sm font-medium text-foreground/80 transition-colors hover:text-primary cursor-pointer"
           >
             Catálogo
@@ -105,6 +105,11 @@ export function Header() {
           {user ? (
             <div className="hidden md:flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Hola, <span className="font-semibold text-foreground">{user.nombre}</span></span>
+              <Link href="/mis-reservas">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <BookMarked className="h-4 w-4" /><span>Mis reservas</span>
+                </Button>
+              </Link>
               {user.rol?.nombre === 'ADMIN' && (
                 <Link href="/admin"><Button variant="outline" size="sm">Admin</Button></Link>
               )}
@@ -142,30 +147,30 @@ export function Header() {
         <div className="border-t border-border md:hidden">
           <div className="container mx-auto space-y-1 px-4 py-3">
             <a
-              href="/"
-              onClick={handleLogoClick}
-              className="block rounded-md px-3 py-2 text-base font-medium hover:bg-muted cursor-pointer"
+              href="/#catalogo-section"
+              onClick={(e) => handleSectionNav(e, 'catalogo-section')}
+              className="block rounded-md px-3 py-3 text-base font-medium hover:bg-muted cursor-pointer min-h-[44px] flex items-center"
             >
               Catálogo
             </a>
             <a
               href="/#marcas"
               onClick={(e) => handleSectionNav(e, 'marcas')}
-              className="block rounded-md px-3 py-2 text-base font-medium hover:bg-muted cursor-pointer"
+              className="block rounded-md px-3 py-3 text-base font-medium hover:bg-muted cursor-pointer min-h-[44px] flex items-center"
             >
               Marcas
             </a>
             <a
               href="/#contacto"
               onClick={(e) => handleSectionNav(e, 'contacto')}
-              className="block rounded-md px-3 py-2 text-base font-medium hover:bg-muted cursor-pointer"
+              className="block rounded-md px-3 py-3 text-base font-medium hover:bg-muted cursor-pointer min-h-[44px] flex items-center"
             >
               Contacto
             </a>
             <a
               href="/nosotros"
               onClick={() => setMobileMenuOpen(false)}
-              className="block rounded-md px-3 py-2 text-base font-medium hover:bg-muted cursor-pointer"
+              className="block rounded-md px-3 py-3 text-base font-medium hover:bg-muted cursor-pointer min-h-[44px] flex items-center"
             >
               Nosotros
             </a>
@@ -173,18 +178,23 @@ export function Header() {
               {user ? (
                 <>
                   <div className="px-3 py-2 text-sm text-muted-foreground">Hola, {user.nombre}</div>
+                  <Link href="/mis-reservas" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="ghost" className="w-full justify-start gap-2 min-h-[44px]">
+                      <BookMarked className="h-4 w-4" /><span>Mis reservas</span>
+                    </Button>
+                  </Link>
                   {user.rol?.nombre === 'ADMIN' && (
                     <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
-                      <Button variant="ghost" size="sm" className="w-full justify-start">Admin</Button>
+                      <Button variant="ghost" className="w-full justify-start min-h-[44px]">Admin</Button>
                     </Link>
                   )}
-                  <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={handleLogout}>
+                  <Button variant="ghost" className="w-full justify-start gap-2 min-h-[44px]" onClick={handleLogout}>
                     <LogOut className="h-4 w-4" /><span>Salir</span>
                   </Button>
                 </>
               ) : (
                 <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="ghost" size="sm" className="w-full justify-start gap-2">
+                  <Button variant="ghost" className="w-full justify-start gap-2 min-h-[44px]">
                     <User className="h-4 w-4" /><span>Iniciar Sesión</span>
                   </Button>
                 </Link>

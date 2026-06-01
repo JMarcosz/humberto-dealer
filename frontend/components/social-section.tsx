@@ -57,7 +57,7 @@ const SOCIALS = [
 export function SocialSection() {
   return (
     <section className="py-16 bg-background">
-      <div className="container mx-auto px-6 md:px-16">
+      <div className="container mx-auto px-4 sm:px-6 md:px-16">
         <div className="mb-10 text-center">
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.4em] text-orange-500">
             Conéctate con nosotros

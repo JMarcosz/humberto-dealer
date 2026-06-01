@@ -6,7 +6,7 @@ from authlib.integrations.flask_client import OAuth
 
 from ..models import db, Usuario, Rol
 from ..validators import validar_email
-from backend import bcrypt
+from backend import bcrypt, limiter
 
 bp  = Blueprint("auth", __name__)
 log = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ def init_oauth(app):
 # POST /api/auth/registro
 # ---------------------------------------------------------------
 @bp.post("/registro")
+@limiter.limit("5 per minute")
 def registro():
     try:
         data = request.get_json(silent=True) or {}
@@ -65,6 +66,7 @@ def registro():
 # POST /api/auth/login
 # ---------------------------------------------------------------
 @bp.post("/login")
+@limiter.limit("10 per minute; 30 per hour")
 def login():
     try:
         data  = request.get_json(silent=True) or {}
@@ -144,7 +146,7 @@ def google_callback():
             usuario.avatar_url = avatar
         db.session.commit()
         login_user(usuario)
-        frontend = "http://localhost:3000"
+        frontend = current_app.config.get("FRONTEND_URL", "http://localhost:3000")
         dest = "/admin" if usuario.is_admin else "/"
         return redirect(f"{frontend}{dest}")
     except Exception as exc:

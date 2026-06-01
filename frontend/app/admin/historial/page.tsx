@@ -9,6 +9,15 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { Loader2, History, DollarSign } from 'lucide-react'
+import { formatDate } from '@/lib/format'
+
+const METODO_LABELS: Record<string, string> = {
+  EFECTIVO:       'Efectivo',
+  TRANSFERENCIA:  'Transferencia',
+  TARJETA:        'Tarjeta',
+  FINANCIAMIENTO: 'Financiamiento',
+  OTRO:           'Otro',
+}
 
 export default function HistorialPage() {
   const [ventas, setVentas] = useState<Venta[]>([])
@@ -21,9 +30,6 @@ export default function HistorialPage() {
       .catch(() => setError('No se pudo cargar el historial. Verifica que el backend esté corriendo.'))
       .finally(() => setLoading(false))
   }, [])
-
-  const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', maximumFractionDigits: 0 }).format(price)
@@ -85,10 +91,11 @@ export default function HistorialPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID Venta</TableHead>
-                      <TableHead>Vehículo ID</TableHead>
-                      <TableHead>Cliente ID</TableHead>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Vehículo</TableHead>
+                      <TableHead>Cliente</TableHead>
                       <TableHead>Fecha</TableHead>
+                      <TableHead>Método</TableHead>
                       <TableHead>Ubicación</TableHead>
                       <TableHead className="text-right">Precio Final</TableHead>
                     </TableRow>
@@ -96,17 +103,21 @@ export default function HistorialPage() {
                   <TableBody>
                     {ventas.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                           No hay ventas registradas.
                         </TableCell>
                       </TableRow>
                     ) : ventas.map(venta => (
                       <TableRow key={venta.id}>
                         <TableCell className="font-mono text-sm">#{venta.id}</TableCell>
-                        <TableCell>Vehículo #{venta.vehiculo_id}</TableCell>
-                        <TableCell>Cliente #{venta.cliente_id}</TableCell>
+                        <TableCell>{venta.vehiculo_nombre ?? `Vehículo #${venta.vehiculo_id}`}</TableCell>
+                        <TableCell>{venta.cliente_nombre ?? `Cliente #${venta.cliente_id}`}</TableCell>
+                        <TableCell>{formatDate(venta.fecha_hora)}</TableCell>
                         <TableCell>
-                          <div>{formatDate(venta.fecha_hora)}</div>
+                          {venta.metodo_pago
+                            ? <Badge variant="outline">{METODO_LABELS[venta.metodo_pago] ?? venta.metodo_pago}</Badge>
+                            : <span className="text-muted-foreground">—</span>
+                          }
                         </TableCell>
                         <TableCell>
                           <span className="text-sm">{venta.ubicacion_desc ?? '—'}</span>

@@ -177,7 +177,7 @@ export function BrandNav() {
 
   return (
     <section id="marcas" className="py-10 bg-muted/30 border-y border-border/30">
-      <div className="container mx-auto px-6 md:px-12">
+      <div className="container mx-auto px-4 sm:px-6 md:px-12">
         <p className="mb-6 text-center text-xs font-bold uppercase tracking-[0.3em] text-muted-foreground">
           Explora por Marca
         </p>
@@ -202,7 +202,7 @@ export function BrandNav() {
                 )}
 
                 {/* Tooltip */}
-                <span className="pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/80 px-2 py-0.5 text-[10px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
+                <span className="pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/80 px-2 py-0.5 text-xs font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
                   {marca.nombre}
                 </span>
               </button>

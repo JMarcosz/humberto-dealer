@@ -4,13 +4,13 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { api } from '@/lib/api'
 import { toVehicle, type Vehicle, type Marca } from '@/lib/types'
-import { filterVehiculosLocal } from '@/lib/data'
-import { VehicleCard } from '@/components/vehicle-card'
+import { GroupedVehicleCard, groupVehicles, type GroupedVehicle } from '@/components/grouped-vehicle-card'
 import { VehicleFilters, type VehicleFilterValues } from '@/components/vehicle-filters'
 import { Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-const PER_PAGE = 12
+const GROUPS_PER_PAGE = 12
+const API_BATCH = 200   // traer todos de una; el catálogo tiene ~111 unidades
 
 // ── Paginador numérico ────────────────────────────────────────────────────────
 function Paginator({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (p: number) => void }) {
@@ -35,19 +35,19 @@ function Paginator({ page, totalPages, onChange }: { page: number; totalPages: n
       <button
         onClick={() => onChange(page - 1)}
         disabled={page === 1}
-        className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/50 bg-card text-sm disabled:opacity-30 hover:border-orange-500 hover:text-orange-500 transition-colors"
+        className="flex h-11 w-11 items-center justify-center rounded-lg border border-border/50 bg-card text-sm disabled:opacity-30 hover:border-orange-500 hover:text-orange-500 transition-colors"
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
 
       {getPages().map((p, i) =>
         p === '...' ? (
-          <span key={`dots-${i}`} className="flex h-9 w-9 items-center justify-center text-sm text-muted-foreground">…</span>
+          <span key={`dots-${i}`} className="flex h-11 w-11 items-center justify-center text-sm text-muted-foreground">…</span>
         ) : (
           <button
             key={p}
             onClick={() => onChange(p as number)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border text-sm font-semibold transition-colors"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border text-sm font-semibold transition-colors"
             style={page === p
               ? { background: '#FF5500', color: '#fff', borderColor: '#FF5500' }
               : { borderColor: 'hsl(var(--border) / 0.5)', background: 'hsl(var(--card))' }
@@ -61,7 +61,7 @@ function Paginator({ page, totalPages, onChange }: { page: number; totalPages: n
       <button
         onClick={() => onChange(page + 1)}
         disabled={page === totalPages}
-        className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/50 bg-card text-sm disabled:opacity-30 hover:border-orange-500 hover:text-orange-500 transition-colors"
+        className="flex h-11 w-11 items-center justify-center rounded-lg border border-border/50 bg-card text-sm disabled:opacity-30 hover:border-orange-500 hover:text-orange-500 transition-colors"
       >
         <ChevronRight className="h-4 w-4" />
       </button>
@@ -76,17 +76,20 @@ export function VehicleCatalog() {
   const pathname      = usePathname()
   const hasScrolled   = useRef(false)
 
-  const [allVehiculos,      setAllVehiculos]      = useState<Vehicle[]>([])
-  const [filteredVehiculos, setFilteredVehiculos] = useState<Vehicle[]>([])
-  const [marcas,            setMarcas]            = useState<Marca[]>([])
-  const [loading,           setLoading]           = useState(true)
-  const [filters,           setFilters]           = useState<VehicleFilterValues>({})
-  const [page,              setPage]              = useState(1)
-  const [totalPages,        setTotalPages]        = useState(1)
-  const [total,             setTotal]             = useState(0)
+  const [allUnits,   setAllUnits]   = useState<Vehicle[]>([])
+  const [groups,     setGroups]     = useState<GroupedVehicle[]>([])
+  const [marcas,     setMarcas]     = useState<Marca[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [filters,    setFilters]    = useState<VehicleFilterValues>({})
+  const [page,       setPage]       = useState(1)
 
   const marcaIdParam     = searchParams.get('marca_id')
   const marcaNombreParam = searchParams.get('marca_nombre')
+
+  const totalUnits  = allUnits.length
+  const totalGroups = groups.length
+  const totalPages  = Math.ceil(totalGroups / GROUPS_PER_PAGE)
+  const visibleGroups = groups.slice((page - 1) * GROUPS_PER_PAGE, page * GROUPS_PER_PAGE)
 
   // Scroll al catálogo cuando se selecciona una marca
   useEffect(() => {
@@ -99,58 +102,58 @@ export function VehicleCatalog() {
     if (!marcaIdParam) hasScrolled.current = false
   }, [marcaIdParam, loading])
 
-  const fetchPage = useCallback(async (p: number, currentFilters: VehicleFilterValues) => {
+  const fetchAll = useCallback(async (currentFilters: VehicleFilterValues, marcaId?: number) => {
     setLoading(true)
     try {
-      const marcaIdActive = currentFilters.marca_id || (marcaIdParam ? Number(marcaIdParam) : undefined)
       const res = await api.getVehiculos({
-        marca_id:   marcaIdActive,
-        modelo_id:  currentFilters.modelo_id,
-        anio:       currentFilters.anio,
-        precio_min: currentFilters.precioMin,
-        precio_max: currentFilters.precioMax,
-        per_page:   PER_PAGE,
-        page:       p,
+        marca_id:        currentFilters.marca_id || marcaId,
+        modelo_id:       currentFilters.modelo_id,
+        anio:            currentFilters.anio,
+        precio_min:      currentFilters.precioMin,
+        precio_max:      currentFilters.precioMax,
+        tipo:            currentFilters.tipo,
+        kilometraje_max: currentFilters.kilometrajeMax,
+        busqueda:        currentFilters.busqueda,
+        per_page:        API_BATCH,
+        page:            1,
       })
-      let vehicles = res.items.map(toVehicle)
-      if (currentFilters.tipo || currentFilters.kilometrajeMax || currentFilters.busqueda) {
-        vehicles = filterVehiculosLocal(vehicles, {
-          tipo:           currentFilters.tipo,
-          kilometrajeMax: currentFilters.kilometrajeMax,
-          busqueda:       currentFilters.busqueda,
-        })
-      }
-      setAllVehiculos(res.items.map(toVehicle))
-      setFilteredVehiculos(vehicles)
-      setTotal(res.total)
-      setTotalPages(res.pages ?? 1)
-      setPage(p)
+      const vehicles = res.items.map(toVehicle)
+      const sorted = [...vehicles].sort((a, b) => {
+        if (a.destacado && !b.destacado) return -1
+        if (!a.destacado && b.destacado) return 1
+        return new Date(b.fechaPublicacion).getTime() - new Date(a.fechaPublicacion).getTime()
+      })
+      setAllUnits(sorted)
+      setGroups(groupVehicles(sorted))
+      setPage(1)
     } catch (err) {
       console.error('Error cargando catálogo:', err)
     } finally {
       setLoading(false)
     }
-  }, [marcaIdParam])
+  }, [])
 
   // Carga inicial y cuando cambia la marca en URL
   useEffect(() => {
-    setPage(1)
     hasScrolled.current = false
+    const marcaId = marcaIdParam ? Number(marcaIdParam) : undefined
     const init = async () => {
       setLoading(true)
       try {
-        const params: Record<string, unknown> = { per_page: PER_PAGE, page: 1 }
-        if (marcaIdParam) params.marca_id = Number(marcaIdParam)
         const [marcasData, vehiculosData] = await Promise.all([
           api.getMarcas(),
-          api.getVehiculos(params),
+          api.getVehiculos({ per_page: API_BATCH, page: 1, ...(marcaId ? { marca_id: marcaId } : {}) }),
         ])
         setMarcas(marcasData)
         const vehicles = vehiculosData.items.map(toVehicle)
-        setAllVehiculos(vehicles)
-        setFilteredVehiculos(vehicles)
-        setTotal(vehiculosData.total)
-        setTotalPages(vehiculosData.pages ?? 1)
+        const sorted = [...vehicles].sort((a, b) => {
+          if (a.destacado && !b.destacado) return -1
+          if (!a.destacado && b.destacado) return 1
+          return new Date(b.fechaPublicacion).getTime() - new Date(a.fechaPublicacion).getTime()
+        })
+        setAllUnits(sorted)
+        setGroups(groupVehicles(sorted))
+        setPage(1)
       } catch (err) {
         console.error('Error cargando catálogo:', err)
       } finally {
@@ -161,26 +164,21 @@ export function VehicleCatalog() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [marcaIdParam])
 
-  const handleFilterChange = useCallback(async (newFilters: VehicleFilterValues) => {
+  const handleFilterChange = useCallback((newFilters: VehicleFilterValues) => {
     setFilters(newFilters)
-    await fetchPage(1, newFilters)
-  }, [fetchPage])
+    const marcaId = marcaIdParam ? Number(marcaIdParam) : undefined
+    fetchAll(newFilters, marcaId)
+  }, [fetchAll, marcaIdParam])
 
   const handlePageChange = (p: number) => {
-    fetchPage(p, filters)
+    setPage(p)
     document.getElementById('catalogo-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const clearMarcaFilter = () => router.push(pathname)
 
-  const sorted = [...filteredVehiculos].sort((a, b) => {
-    if (a.destacado && !b.destacado) return -1
-    if (!a.destacado && b.destacado) return 1
-    return new Date(b.fechaPublicacion).getTime() - new Date(a.fechaPublicacion).getTime()
-  })
-
   return (
-    <section id="catalogo" className="py-8">
+    <section id="catalogo-section" className="py-8">
       {marcaIdParam && marcaNombreParam && (
         <div className="mb-6 flex items-center justify-between rounded-lg border border-orange-500/30 bg-orange-500/5 px-4 py-3">
           <p className="text-sm">
@@ -203,16 +201,17 @@ export function VehicleCatalog() {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            {total} vehículo{total !== 1 ? 's' : ''} encontrado{total !== 1 ? 's' : ''}
+            {totalGroups} modelo{totalGroups !== 1 ? 's' : ''}
+            <span className="ml-1 text-xs">({totalUnits} unidades)</span>
             {totalPages > 1 && <span className="ml-2 text-xs">— Página {page} de {totalPages}</span>}
           </p>
         )}
       </div>
 
-      {!loading && sorted.length > 0 ? (
+      {!loading && visibleGroups.length > 0 ? (
         <>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {sorted.map(vehicle => <VehicleCard key={vehicle.id} vehicle={vehicle} />)}
+            {visibleGroups.map(g => <GroupedVehicleCard key={g.modeloId} group={g} />)}
           </div>
           <Paginator page={page} totalPages={totalPages} onChange={handlePageChange} />
         </>

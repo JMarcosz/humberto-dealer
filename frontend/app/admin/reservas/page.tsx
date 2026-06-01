@@ -5,6 +5,8 @@ import { api } from '@/lib/api'
 import type { Reserva } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -12,21 +14,61 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Loader2, X, Eye, RefreshCw } from 'lucide-react'
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Pagination, PaginationContent, PaginationEllipsis, PaginationItem,
+  PaginationLink, PaginationNext, PaginationPrevious,
+} from '@/components/ui/pagination'
+import { Loader2, X, Eye, RefreshCw, CheckCircle2 } from 'lucide-react'
+import { formatDate } from '@/lib/format'
+
+const PER_PAGE = 30
+
+function getPageNumbers(current: number, total: number): (number | 'ellipsis')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages: (number | 'ellipsis')[] = [1]
+  if (current > 3) pages.push('ellipsis')
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p)
+  if (current < total - 2) pages.push('ellipsis')
+  pages.push(total)
+  return pages
+}
+
+const METODOS_PAGO = [
+  { value: 'EFECTIVO',       label: 'Efectivo' },
+  { value: 'TRANSFERENCIA',  label: 'Transferencia' },
+  { value: 'TARJETA',        label: 'Tarjeta' },
+  { value: 'FINANCIAMIENTO', label: 'Financiamiento' },
+  { value: 'OTRO',           label: 'Otro' },
+]
 
 export default function ReservasPage() {
   const [reservas, setReservas] = useState<Reserva[]>([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState('all')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
 
-  const loadReservas = async (estado?: string) => {
+  // Confirmar venta
+  const [reservaAConfirmar, setReservaAConfirmar] = useState<Reserva | null>(null)
+  const [precioFinal, setPrecioFinal] = useState('')
+  const [metodoPago, setMetodoPago] = useState('')
+  const [confirmando, setConfirmando] = useState(false)
+  const [errorConfirmar, setErrorConfirmar] = useState<string | null>(null)
+
+  const totalPages = Math.ceil(total / PER_PAGE)
+
+  const loadReservas = async (estado: string = filterStatus, p: number = page) => {
     setLoading(true)
     try {
       const res = await api.getTodasReservas({
-        estado: estado === 'all' ? undefined : estado?.toUpperCase(),
-        page: 1,
+        estado: estado === 'all' ? undefined : estado,
+        page: p,
       })
       setReservas(res.items)
+      setTotal(res.total)
     } catch (err) {
       console.error('Error cargando reservas:', err)
     } finally {
@@ -34,7 +76,18 @@ export default function ReservasPage() {
     }
   }
 
-  useEffect(() => { loadReservas() }, [])
+  useEffect(() => { loadReservas() }, []) // eslint-disable-line
+
+  const handlePage = (p: number) => {
+    setPage(p)
+    loadReservas(filterStatus, p)
+  }
+
+  const handleFilter = (estado: string) => {
+    setFilterStatus(estado)
+    setPage(1)
+    loadReservas(estado, 1)
+  }
 
   const handleCancelar = async (id: number) => {
     if (!confirm('¿Cancelar esta reserva? El vehículo volverá a DISPONIBLE.')) return
@@ -47,12 +100,40 @@ export default function ReservasPage() {
     }
   }
 
-  const formatDate = (s: string) =>
-    new Date(s).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })
+  const abrirConfirmarVenta = (reserva: Reserva) => {
+    setReservaAConfirmar(reserva)
+    setPrecioFinal('')
+    setMetodoPago('')
+    setErrorConfirmar(null)
+  }
 
-  const filtered = reservas.filter(r =>
-    filterStatus === 'all' || r.estado?.toUpperCase() === filterStatus.toUpperCase()
-  )
+  const handleConfirmarVenta = async () => {
+    if (!reservaAConfirmar) return
+    const precio = parseFloat(precioFinal.replace(/,/g, ''))
+    if (!precio || precio <= 0) { setErrorConfirmar('Ingresa un precio válido.'); return }
+    if (!metodoPago) { setErrorConfirmar('Selecciona el método de pago.'); return }
+
+    setConfirmando(true)
+    setErrorConfirmar(null)
+    try {
+      await api.confirmarVenta({
+        vehiculo_id: reservaAConfirmar.vehiculo_id,
+        cliente_id:  reservaAConfirmar.cliente_id,
+        precio_final: precio,
+        metodo_pago:  metodoPago,
+        reserva_id:   reservaAConfirmar.id,
+      })
+      setReservas(prev => prev.map(r =>
+        r.id === reservaAConfirmar.id ? { ...r, estado: 'CONFIRMADA' } : r
+      ))
+      setReservaAConfirmar(null)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error desconocido'
+      setErrorConfirmar(`No se pudo registrar la venta. ${msg}`)
+    } finally {
+      setConfirmando(false)
+    }
+  }
 
   const enProceso   = reservas.filter(r => r.estado?.toUpperCase() === 'EN_PROCESO').length
   const canceladas  = reservas.filter(r => r.estado?.toUpperCase() === 'CANCELADA').length
@@ -67,6 +148,8 @@ export default function ReservasPage() {
     }
   }
 
+  const pageNumbers = getPageNumbers(page, totalPages)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -74,7 +157,7 @@ export default function ReservasPage() {
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Reservas</h1>
           <p className="text-muted-foreground">Gestión de reservas activas y transición a venta</p>
         </div>
-        <Button variant="outline" onClick={() => loadReservas(filterStatus)} className="gap-2">
+        <Button variant="outline" onClick={() => loadReservas(filterStatus, page)} className="gap-2">
           <RefreshCw className="h-4 w-4" />
           Actualizar
         </Button>
@@ -107,8 +190,9 @@ export default function ReservasPage() {
         </Card>
       </div>
 
-      <div className="flex justify-end">
-        <Select value={filterStatus} onValueChange={v => { setFilterStatus(v); loadReservas(v) }}>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm text-muted-foreground">{total} reservas en total</p>
+        <Select value={filterStatus} onValueChange={handleFilter}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Filtrar por estado" />
           </SelectTrigger>
@@ -140,13 +224,13 @@ export default function ReservasPage() {
                   <Loader2 className="h-5 w-5 animate-spin inline" />
                 </TableCell>
               </TableRow>
-            ) : filtered.length === 0 ? (
+            ) : reservas.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   No hay reservas
                 </TableCell>
               </TableRow>
-            ) : filtered.map(reserva => (
+            ) : reservas.map(reserva => (
               <TableRow key={reserva.id}>
                 <TableCell className="font-mono text-sm">#{reserva.id}</TableCell>
                 <TableCell>{reserva.vehiculo_nombre ?? `Vehículo #${reserva.vehiculo_id}`}</TableCell>
@@ -162,19 +246,32 @@ export default function ReservasPage() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      title="Ver vehículo"
                       onClick={() => window.open(`/vehiculo/${reserva.vehiculo_id}`, '_blank')}
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
                     {reserva.estado?.toUpperCase() === 'EN_PROCESO' && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleCancelar(reserva.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Confirmar venta"
+                          className="text-green-600 hover:text-green-700"
+                          onClick={() => abrirConfirmarVenta(reserva)}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Cancelar reserva"
+                          onClick={() => handleCancelar(reserva.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </>
                     )}
                   </div>
                 </TableCell>
@@ -183,6 +280,109 @@ export default function ReservasPage() {
           </TableBody>
         </Table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center">
+          <Pagination className="w-auto mx-0">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={page > 1 ? () => handlePage(page - 1) : undefined}
+                  className={page <= 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+              {pageNumbers.map((n, i) =>
+                n === 'ellipsis' ? (
+                  <PaginationItem key={`e-${i}`}>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                ) : (
+                  <PaginationItem key={n}>
+                    <PaginationLink
+                      isActive={n === page}
+                      onClick={() => n !== page && handlePage(n)}
+                      className="cursor-pointer"
+                    >
+                      {n}
+                    </PaginationLink>
+                  </PaginationItem>
+                )
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={page < totalPages ? () => handlePage(page + 1) : undefined}
+                  className={page >= totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
+
+      {/* Dialog confirmar venta */}
+      <Dialog open={!!reservaAConfirmar} onOpenChange={() => setReservaAConfirmar(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar venta</DialogTitle>
+            <DialogDescription>
+              Registrar la venta de{' '}
+              <strong>{reservaAConfirmar?.vehiculo_nombre ?? `Vehículo #${reservaAConfirmar?.vehiculo_id}`}</strong>
+              {' '}a{' '}
+              <strong>{reservaAConfirmar?.cliente_nombre ?? `Cliente #${reservaAConfirmar?.cliente_id}`}</strong>.
+              El vehículo pasará a estado <strong>VENDIDO</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {errorConfirmar && (
+              <p className="text-sm text-destructive rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+                {errorConfirmar}
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="precio">Precio final (DOP)</Label>
+              <Input
+                id="precio"
+                type="number"
+                min="0"
+                step="100"
+                placeholder="Ej: 1500000"
+                value={precioFinal}
+                onChange={e => setPrecioFinal(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="metodo">Método de pago</Label>
+              <Select value={metodoPago} onValueChange={setMetodoPago}>
+                <SelectTrigger id="metodo">
+                  <SelectValue placeholder="Seleccionar método" />
+                </SelectTrigger>
+                <SelectContent>
+                  {METODOS_PAGO.map(m => (
+                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReservaAConfirmar(null)} disabled={confirmando}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmarVenta}
+              disabled={confirmando || !precioFinal || !metodoPago}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {confirmando
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Registrando...</>
+                : <><CheckCircle2 className="h-4 w-4 mr-2" />Confirmar venta</>
+              }
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

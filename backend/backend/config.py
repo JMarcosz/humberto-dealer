@@ -8,7 +8,7 @@ load_dotenv()
 class Config:
     # Flask
     SECRET_KEY = os.environ["SECRET_KEY"]
-    DEBUG      = os.getenv("FLASK_DEBUG", "0") == "1"
+    DEBUG      = False
 
     # Base de datos
     SQLALCHEMY_DATABASE_URI = (
@@ -20,32 +20,42 @@ class Config:
     SQLALCHEMY_ECHO = os.getenv("SQLALCHEMY_ECHO", "0") == "1"
     SQLALCHEMY_ENGINE_OPTIONS = {
         "connect_args": {"charset": "utf8mb4"},
-        "pool_pre_ping": True,
+        "pool_pre_ping":    True,
+        "pool_recycle":     300,   # reciclar conexiones cada 5 min
+        "pool_size":        10,
+        "max_overflow":     20,
     }
     JSON_AS_ASCII = False
 
-    # WhatsApp Business API (Meta Cloud API)
-    WHATSAPP_API_KEY          = os.getenv("WHATSAPP_API_KEY", "")
-    WHATSAPP_PHONE_NUMBER_ID  = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
-    WHATSAPP_VERIFY_TOKEN     = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
+    # Tamaño máximo de archivos (10 MB)
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024
+
+    # WhatsApp Business API
+    WHATSAPP_API_KEY         = os.getenv("WHATSAPP_API_KEY", "")
+    WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+    WHATSAPP_VERIFY_TOKEN    = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
 
     # Google OAuth 2.0
     GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
     GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
-    # Dealer location (Google Maps / Waze)
+    # URL del frontend (para redirecciones OAuth y CORS)
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+    # Dealer location
     DEALER_LAT   = float(os.getenv("DEALER_LAT", "18.4861"))
     DEALER_LNG   = float(os.getenv("DEALER_LNG", "-69.9312"))
     DEALER_PLACE = os.getenv("DEALER_PLACE", "Piantini, Santo Domingo, República Dominicana")
 
     # Excel uploads
-    UPLOAD_FOLDER   = os.getenv("UPLOAD_FOLDER", "/tmp/concesionaria_uploads")
-    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB
+    UPLOAD_FOLDER = os.getenv(
+        "UPLOAD_FOLDER",
+        os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "uploads"))
+    )
 
 
 class DevelopmentConfig(Config):
-    DEBUG = True
-    # Cookies cross-port en localhost (desarrollo)
+    DEBUG = os.getenv("FLASK_DEBUG", "0") == "1"
     SESSION_COOKIE_SAMESITE = "Lax"
     SESSION_COOKIE_SECURE   = False
     SESSION_COOKIE_HTTPONLY = True
@@ -56,12 +66,15 @@ class ProductionConfig(Config):
     SESSION_COOKIE_SAMESITE = "None"
     SESSION_COOKIE_SECURE   = True
     SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_NAME     = "__Host-session"   # prefijo seguro HTTPS
+    PERMANENT_SESSION_LIFETIME = 86400 * 7        # 7 días
 
 
 config_map = {
     "development": DevelopmentConfig,
     "production":  ProductionConfig,
 }
+
 
 def get_config() -> Config:
     env = os.getenv("FLASK_ENV", "development")

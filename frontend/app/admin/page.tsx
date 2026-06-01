@@ -7,27 +7,38 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Car, DollarSign, ShoppingCart, Clock } from 'lucide-react'
 
 export default function AdminDashboard() {
-  const [vehiculos, setVehiculos] = useState<Vehicle[]>([])
+  const [counts, setCounts] = useState({ disponibles: 0, reservados: 0, vendidos: 0, pendientes: 0 })
+  const [valorInventario, setValorInventario] = useState(0)
+  const [recientes, setRecientes] = useState<Vehicle[]>([])
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    api.getVehiculosAdmin({ per_page: 100 })
-      .then(res => setVehiculos(res.items.map(toVehicle)))
-      .catch(() => setVehiculos([]))
-      .finally(() => setLoading(false))
-  }, [])
-
-  const disponibles  = vehiculos.filter(v => v.estado === 'disponible').length
-  const reservados   = vehiculos.filter(v => v.estado === 'reservado').length
-  const vendidos     = vehiculos.filter(v => v.estado === 'vendido').length
-  const pendientes   = vehiculos.filter(v => v.estado === 'pendiente_validacion').length
-
-  const totalValorInventario = vehiculos
-    .filter(v => v.estado === 'disponible')
-    .reduce((acc, v) => acc + v.precio, 0)
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', maximumFractionDigits: 0 }).format(price)
+
+  useEffect(() => {
+    Promise.all([
+      api.getVehiculosAdmin({ estado: 'DISPONIBLE',            per_page: 1 }),
+      api.getVehiculosAdmin({ estado: 'RESERVADO',             per_page: 1 }),
+      api.getVehiculosAdmin({ estado: 'VENDIDO',               per_page: 1 }),
+      api.getVehiculosAdmin({ estado: 'PENDIENTE_VALIDACION',  per_page: 1 }),
+      api.getVehiculosAdmin({ per_page: 5 }),
+      api.getVehiculosAdmin({ estado: 'DISPONIBLE', per_page: 500 }),
+    ])
+      .then(([disp, res, ven, pend, ult, dispAll]) => {
+        setCounts({
+          disponibles: disp.total,
+          reservados:  res.total,
+          vendidos:    ven.total,
+          pendientes:  pend.total,
+        })
+        setRecientes(ult.items.map(toVehicle))
+        setValorInventario(
+          dispAll.items.map(toVehicle).reduce((acc, v) => acc + v.precio, 0)
+        )
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
 
   if (loading) {
     return (
@@ -51,7 +62,7 @@ export default function AdminDashboard() {
             <Car className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{disponibles}</div>
+            <div className="text-2xl font-bold">{counts.disponibles}</div>
             <p className="text-xs text-muted-foreground">vehículos en catálogo</p>
           </CardContent>
         </Card>
@@ -62,7 +73,7 @@ export default function AdminDashboard() {
             <ShoppingCart className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{reservados}</div>
+            <div className="text-2xl font-bold">{counts.reservados}</div>
             <p className="text-xs text-muted-foreground">pendientes de venta</p>
           </CardContent>
         </Card>
@@ -73,7 +84,7 @@ export default function AdminDashboard() {
             <DollarSign className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{vendidos}</div>
+            <div className="text-2xl font-bold">{counts.vendidos}</div>
             <p className="text-xs text-muted-foreground">este período</p>
           </CardContent>
         </Card>
@@ -84,7 +95,7 @@ export default function AdminDashboard() {
             <Clock className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{pendientes}</div>
+            <div className="text-2xl font-bold">{counts.pendientes}</div>
             <p className="text-xs text-muted-foreground">por validar</p>
           </CardContent>
         </Card>
@@ -96,10 +107,10 @@ export default function AdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="text-3xl font-bold text-primary">
-            {formatPrice(totalValorInventario)}
+            {formatPrice(valorInventario)}
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Valor total de {disponibles} vehículos disponibles
+            Valor total de {counts.disponibles} vehículos disponibles
           </p>
         </CardContent>
       </Card>
@@ -110,7 +121,9 @@ export default function AdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {vehiculos.slice(0, 5).map(vehicle => (
+            {[...recientes]
+              .sort((a, b) => new Date(b.fechaPublicacion).getTime() - new Date(a.fechaPublicacion).getTime())
+              .map(vehicle => (
               <div key={vehicle.id} className="flex items-center justify-between border-b border-border pb-4 last:border-0 last:pb-0">
                 <div>
                   <p className="font-medium">{vehicle.marca} {vehicle.modelo}</p>
@@ -126,7 +139,7 @@ export default function AdminDashboard() {
                 </span>
               </div>
             ))}
-            {vehiculos.length === 0 && (
+            {recientes.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
                 Sin datos — asegúrate de que el backend Flask está corriendo.
               </p>

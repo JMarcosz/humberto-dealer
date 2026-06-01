@@ -3,9 +3,8 @@ import logging
 import os
 import threading
 from flask import Blueprint, jsonify, request, send_file, current_app
-from flask_login import login_required
 
-from ..models import db, Vehiculo, Modelo
+from ..models import db, Vehiculo, Marca, Modelo
 from ..decorators import admin_required
 from ..services.excel import ExcelService
 from ..validators import forzar_mayusculas
@@ -23,7 +22,6 @@ _lock = threading.Lock()
 # Multipart: file = archivo .xlsx
 # ---------------------------------------------------------------
 @bp.post("/importar")
-@login_required
 @admin_required
 def importar_excel():
     global _progreso
@@ -56,20 +54,60 @@ def _procesar_importacion(ruta: str, app):
                 _progreso["total"]  = len(filas)
                 _progreso["errores"] = errores_parse
 
+            # Si hay filas de formato Humberto, calcular siguiente VIN disponible
+            ultimo_hai = (
+                db.session.query(Vehiculo.vin)
+                .filter(Vehiculo.vin.like("HAI%"))
+                .order_by(Vehiculo.vin.desc())
+                .first()
+            )
+            vin_counter = int(ultimo_hai[0][3:]) + 1 if ultimo_hai else 1
+
             for i, fila in enumerate(filas, 1):
                 try:
-                    modelo = Modelo.query.filter_by(nombre=fila["modelo"]).first()
-                    if not modelo:
-                        with _lock:
-                            _progreso["errores"].append(
-                                f"Fila {i}: modelo '{fila['modelo']}' no encontrado"
+                    if fila.get("marca_nombre"):
+                        # Reasignar VIN con contador actualizado desde la BD
+                        fila["vin"] = f'HAI{vin_counter:014d}'
+                        vin_counter += 1
+
+                        # Formato Humberto: find-or-create Marca + Modelo
+                        marca = Marca.query.filter_by(nombre=fila["marca_nombre"]).first()
+                        if not marca:
+                            marca = Marca(nombre=fila["marca_nombre"])
+                            db.session.add(marca)
+                            db.session.flush()
+
+                        modelo = Modelo.query.filter_by(
+                            nombre=fila["modelo"], marca_id=marca.id
+                        ).first()
+                        if not modelo:
+                            categoria = fila.get("modelo_categoria", "OTRO")
+                            modelo = Modelo(
+                                nombre=fila["modelo"],
+                                marca_id=marca.id,
+                                categoria=categoria,
                             )
+                            db.session.add(modelo)
+                            db.session.flush()
+                    else:
+                        modelo = Modelo.query.filter_by(nombre=fila["modelo"]).first()
+                        if not modelo:
+                            with _lock:
+                                _progreso["errores"].append(
+                                    f"Fila {i}: modelo '{fila['modelo']}' no encontrado"
+                                )
+                            continue
+
+                    vin = fila["vin"]
+                    if Vehiculo.query.filter_by(vin=vin).first():
+                        with _lock:
+                            _progreso["errores"].append(f"Fila {i}: VIN '{vin}' ya existe — omitida")
                         continue
 
                     v = Vehiculo(
                         modelo_id      = modelo.id,
                         anio           = fila["anio"],
-                        vin            = fila["vin"],
+                        vin            = vin,
                         color          = fila["color"].upper(),
                         precio         = fila["precio"],
                         kilometraje    = fila.get("kilometraje", 0),
@@ -98,7 +136,6 @@ def _procesar_importacion(ruta: str, app):
 # GET /api/borradores/progreso
 # ---------------------------------------------------------------
 @bp.get("/progreso")
-@login_required
 @admin_required
 def progreso_importacion():
     with _lock:
@@ -110,7 +147,6 @@ def progreso_importacion():
 # Exporta todos los vehículos a .xlsx
 # ---------------------------------------------------------------
 @bp.get("/exportar")
-@login_required
 @admin_required
 def exportar_excel():
     try:
@@ -123,10 +159,73 @@ def exportar_excel():
 
 
 # ---------------------------------------------------------------
+# DELETE /api/borradores/eliminar-lote
+# Body: { "ids": [1, 2, 3, ...] }
+# ---------------------------------------------------------------
+@bp.delete("/eliminar-lote")
+@admin_required
+def eliminar_lote():
+    try:
+        data = request.get_json(silent=True) or {}
+        ids  = data.get("ids", [])
+        if not ids or not isinstance(ids, list):
+            return jsonify({"error": "Se requiere una lista de ids"}), 400
+
+        eliminados = (
+            Vehiculo.query
+            .filter(Vehiculo.id.in_(ids), Vehiculo.estado.in_(["BORRADOR", "PENDIENTE_VALIDACION"]))
+            .all()
+        )
+        for v in eliminados:
+            db.session.delete(v)
+
+        db.session.commit()
+        log.info("Lote eliminado: %d vehículos", len(eliminados))
+        return jsonify({"mensaje": f"{len(eliminados)} vehículos eliminados", "total": len(eliminados)})
+    except Exception as exc:
+        db.session.rollback()
+        log.error("eliminar_lote: %s", exc)
+        return jsonify({"error": "Error interno"}), 500
+
+
+# ---------------------------------------------------------------
+# PATCH /api/borradores/aprobar-lote
+# Body: { "ids": [1, 2, 3, ...] }
+# ---------------------------------------------------------------
+@bp.patch("/aprobar-lote")
+@admin_required
+def aprobar_lote():
+    try:
+        data = request.get_json(silent=True) or {}
+        ids  = data.get("ids", [])
+        if not ids or not isinstance(ids, list):
+            return jsonify({"error": "Se requiere una lista de ids"}), 400
+
+        from datetime import datetime
+        ahora = datetime.utcnow()
+
+        actualizados = (
+            Vehiculo.query
+            .filter(Vehiculo.id.in_(ids), Vehiculo.estado.in_(["BORRADOR", "PENDIENTE_VALIDACION"]))
+            .all()
+        )
+        for v in actualizados:
+            v.estado       = "DISPONIBLE"
+            v.publicado_en = ahora
+
+        db.session.commit()
+        log.info("Lote aprobado: %d vehículos", len(actualizados))
+        return jsonify({"mensaje": f"{len(actualizados)} vehículos publicados", "total": len(actualizados)})
+    except Exception as exc:
+        db.session.rollback()
+        log.error("aprobar_lote: %s", exc)
+        return jsonify({"error": "Error interno"}), 500
+
+
+# ---------------------------------------------------------------
 # PATCH /api/borradores/<id>/aprobar   — BORRADOR/PENDIENTE → DISPONIBLE
 # ---------------------------------------------------------------
 @bp.patch("/<int:vid>/aprobar")
-@login_required
 @admin_required
 def aprobar_borrador(vid: int):
     try:
@@ -149,7 +248,6 @@ def aprobar_borrador(vid: int):
 # PATCH /api/borradores/<id>/pendiente  — marcar como PENDIENTE_VALIDACION
 # ---------------------------------------------------------------
 @bp.patch("/<int:vid>/pendiente")
-@login_required
 @admin_required
 def marcar_pendiente(vid: int):
     try:
@@ -171,7 +269,6 @@ def marcar_pendiente(vid: int):
 #         combustible, transmision, descripcion(opt) }
 # ---------------------------------------------------------------
 @bp.post("/crear")
-@login_required
 @admin_required
 def crear_borrador():
     try:
@@ -219,7 +316,6 @@ def crear_borrador():
 # PUT /api/borradores/<id>  — actualizar borrador
 # ---------------------------------------------------------------
 @bp.put("/<int:vid>")
-@login_required
 @admin_required
 def actualizar_borrador(vid: int):
     try:
@@ -248,7 +344,6 @@ def actualizar_borrador(vid: int):
 # DELETE /api/borradores/<id>  — eliminar borrador
 # ---------------------------------------------------------------
 @bp.delete("/<int:vid>")
-@login_required
 @admin_required
 def eliminar_borrador(vid: int):
     try:
@@ -269,7 +364,6 @@ def eliminar_borrador(vid: int):
 # GET /api/borradores/plantilla  — descargar plantilla Excel vacía
 # ---------------------------------------------------------------
 @bp.get("/plantilla")
-@login_required
 @admin_required
 def descargar_plantilla():
     try:

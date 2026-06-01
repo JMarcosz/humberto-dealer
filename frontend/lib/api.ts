@@ -123,7 +123,11 @@ class ApiClient {
 
   // ==================== ADMIN: VEHICULOS ====================
 
-  async getVehiculosAdmin(params: { page?: number; estado?: string; per_page?: number } = {}): Promise<PaginatedResponse<Vehiculo>> {
+  async getVehiculoAdmin(id: number): Promise<Vehiculo> {
+    return this.request<Vehiculo>(`/admin/vehiculos/${id}`)
+  }
+
+  async getVehiculosAdmin(params: { page?: number; estado?: string; per_page?: number; buscar?: string } = {}): Promise<PaginatedResponse<Vehiculo>> {
     const query = new URLSearchParams()
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) query.append(key, String(value))
@@ -164,6 +168,28 @@ class ApiClient {
     return this.request(`/borradores/${vehiculoId}/aprobar`, {
       method: 'PATCH',
     })
+  }
+
+  async publicarBorradorLote(ids: number[]): Promise<{ mensaje: string; total: number }> {
+    return this.request('/borradores/aprobar-lote', {
+      method: 'PATCH',
+      body: JSON.stringify({ ids }),
+    })
+  }
+
+  async eliminarBorradorLote(ids: number[]): Promise<{ mensaje: string; total: number }> {
+    return this.request('/borradores/eliminar-lote', {
+      method: 'DELETE',
+      body: JSON.stringify({ ids }),
+    })
+  }
+
+  async getVehiculoIdsAdmin(params: { estado?: string; buscar?: string } = {}): Promise<{ ids: number[]; total: number }> {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') query.append(key, String(value))
+    })
+    return this.request(`/admin/vehiculos/ids${query.toString() ? `?${query}` : ''}`)
   }
 
   // ==================== ADMIN: VENTAS ====================
@@ -306,6 +332,14 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     })
+  }
+
+  async likeResena(vehiculoId: number, resenaId: number): Promise<{ liked: boolean; likes_count: number }> {
+    return this.request(`/catalogo/vehiculos/${vehiculoId}/resenas/${resenaId}/like`, { method: 'POST' })
+  }
+
+  async eliminarResena(resenaId: number): Promise<void> {
+    return this.request(`/catalogo/resenas/${resenaId}`, { method: 'DELETE' })
   }
 }
 

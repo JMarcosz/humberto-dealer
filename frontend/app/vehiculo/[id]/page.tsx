@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { getVehiculoById, getVehiculos } from '@/lib/data'
+import { getVehicleImageUrl } from '@/lib/vehicle-images'
 import {
   ArrowLeft,
   MapPin,
@@ -110,7 +111,12 @@ export default async function VehiclePage({ params }: PageProps) {
 
           <div className="grid gap-8 lg:grid-cols-5">
             <div className="lg:col-span-3">
-              <ImageGallery images={vehicle.imagenes} alt={`${vehicle.marca} ${vehicle.modelo}`} />
+              {(() => {
+                const imgs = vehicle.imagenes
+                  .map(img => getVehicleImageUrl(vehicle.modelo, vehicle.id, img))
+                const galleryImages = imgs.length > 0 ? imgs : [getVehicleImageUrl(vehicle.modelo, vehicle.id)]
+                return <ImageGallery images={galleryImages} alt={`${vehicle.marca} ${vehicle.modelo}`} />
+              })()}
             </div>
 
             <div className="lg:col-span-2 space-y-6">
