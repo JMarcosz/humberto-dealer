@@ -39,7 +39,7 @@ def create_app() -> Flask:
     compress.init_app(app)
 
     # CORS — orígenes permitidos según entorno
-    frontend_url = app.config.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    frontend_url = app.config["FRONTEND_URL"].rstrip("/")
     CORS(app, origins=[frontend_url], supports_credentials=True)
 
     # Logging

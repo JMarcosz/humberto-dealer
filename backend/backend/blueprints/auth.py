@@ -113,7 +113,7 @@ def me():
 # ---------------------------------------------------------------
 @bp.get("/google")
 def google_login():
-    frontend = current_app.config.get("FRONTEND_URL", "http://localhost:3000")
+    frontend = current_app.config["FRONTEND_URL"].rstrip("/")
     redirect_uri = f"{frontend}/api/auth/google/callback"
     return oauth.google.authorize_redirect(redirect_uri)
 
@@ -147,7 +147,7 @@ def google_callback():
             usuario.avatar_url = avatar
         db.session.commit()
         login_user(usuario)
-        frontend = current_app.config.get("FRONTEND_URL", "http://localhost:3000")
+        frontend = current_app.config["FRONTEND_URL"].rstrip("/")
         dest = "/admin" if usuario.is_admin else "/"
         return redirect(f"{frontend}{dest}")
     except Exception as exc:
