@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { api } from '@/lib/api'
-import type { Usuario } from '@/lib/types'
+import { useCurrentUser } from '@/lib/queries'
 import {
   Car,
   FileSpreadsheet,
@@ -32,11 +32,7 @@ export function AdminHeader() {
   const pathname = usePathname()
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [user, setUser] = useState<Usuario | null>(null)
-
-  useEffect(() => {
-    api.getCurrentUser().then(setUser).catch(() => setUser(null))
-  }, [])
+  const { data: user } = useCurrentUser()
 
   const handleLogout = async () => {
     try { await api.logout() } catch {}

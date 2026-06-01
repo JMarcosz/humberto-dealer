@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { api } from '@/lib/api'
-import type { Marca } from '@/lib/types'
+import { useMarcas } from '@/lib/queries'
 import { triggerTransition } from '@/components/transition-overlay'
 
 // ── Configuración por marca ───────────────────────────────────────────────────
@@ -150,12 +149,8 @@ function BrandLogo({ nombre, config }: { nombre: string; config: BrandConfig }) 
 }
 
 export function BrandNav() {
-  const [marcas, setMarcas] = useState<Marca[]>([])
+  const { data: marcas = [] } = useMarcas()
   const router = useRouter()
-
-  useEffect(() => {
-    api.getMarcas().then(setMarcas).catch(() => setMarcas([]))
-  }, [])
 
   const handleBrandClick = (marca: Marca) => {
     triggerTransition()

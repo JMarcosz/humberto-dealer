@@ -7,27 +7,21 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Menu, X, User, LogOut, Sun, Moon, BookMarked } from 'lucide-react'
-import { api } from '@/lib/api'
-import type { Usuario } from '@/lib/types'
+import { useCurrentUser } from '@/lib/queries'
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [user, setUser] = useState<Usuario | null>(null)
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const { theme, setTheme } = useTheme()
+  const { data: user } = useCurrentUser()
 
   useEffect(() => { setMounted(true) }, [])
 
-  // Check si hay sesión activa al cargar
-  useEffect(() => {
-    api.getCurrentUser().then(setUser).catch(() => setUser(null))
-  }, [])
-
   const handleLogout = async () => {
+    const { api } = await import('@/lib/api')
     try { await api.logout() } catch {}
-    setUser(null)
     router.refresh()
   }
 

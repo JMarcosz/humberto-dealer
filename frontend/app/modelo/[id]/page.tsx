@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { toVehicle, type Vehicle } from '@/lib/types'
@@ -30,25 +31,25 @@ export default function ModeloPage() {
   const router   = useRouter()
   const modeloId = Number(params.id)
 
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [idx,      setIdx]      = useState(0)
-  const [imgSrc,   setImgSrc]   = useState('')
-  const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState(false)
+  const [idx,    setIdx]    = useState(0)
+  const [imgSrc, setImgSrc] = useState('')
 
-  useEffect(() => {
-    if (!modeloId) { setError(true); setLoading(false); return }
-    api.getVehiculos({ modelo_id: modeloId, per_page: 100 })
-      .then(res => {
-        const sorted = res.items.map(toVehicle).sort((a, b) => b.año - a.año)
-        setVehicles(sorted)
-        if (sorted.length > 0) {
-          setImgSrc(getVehicleImageUrl(sorted[0].modelo, Number(sorted[0].id), sorted[0].imagenes[0]))
-        }
-      })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false))
-  }, [modeloId])
+  const { data: vehiculosData, isLoading: loading, isError: error } = useQuery({
+    queryKey: ['vehiculos', { modelo_id: modeloId }],
+    queryFn:  () => api.getVehiculos({ modelo_id: modeloId, per_page: 100 }),
+    enabled:  !!modeloId,
+    staleTime: 60_000,
+  })
+
+  const vehicles = useMemo<Vehicle[]>(() => {
+    if (!vehiculosData) return []
+    const sorted = vehiculosData.items.map(toVehicle).sort((a, b) => b.año - a.año)
+    if (sorted.length > 0 && !imgSrc) {
+      setImgSrc(getVehicleImageUrl(sorted[0].modelo, Number(sorted[0].id), sorted[0].imagenes[0]))
+    }
+    return sorted
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehiculosData])
 
   const current = vehicles[idx]
 

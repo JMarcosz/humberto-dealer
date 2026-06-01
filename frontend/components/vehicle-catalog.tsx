@@ -1,16 +1,18 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { toVehicle, type Vehicle, type Marca } from '@/lib/types'
+import { toVehicle, type Vehicle } from '@/lib/types'
+import { useMarcas } from '@/lib/queries'
 import { GroupedVehicleCard, groupVehicles, type GroupedVehicle } from '@/components/grouped-vehicle-card'
 import { VehicleFilters, type VehicleFilterValues } from '@/components/vehicle-filters'
 import { Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const GROUPS_PER_PAGE = 12
-const API_BATCH = 200   // traer todos de una; el catálogo tiene ~111 unidades
+const API_BATCH = 200
 
 // ── Paginador numérico ────────────────────────────────────────────────────────
 function Paginator({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (p: number) => void }) {
@@ -76,20 +78,51 @@ export function VehicleCatalog() {
   const pathname      = usePathname()
   const hasScrolled   = useRef(false)
 
-  const [allUnits,   setAllUnits]   = useState<Vehicle[]>([])
-  const [groups,     setGroups]     = useState<GroupedVehicle[]>([])
-  const [marcas,     setMarcas]     = useState<Marca[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [filters,    setFilters]    = useState<VehicleFilterValues>({})
-  const [page,       setPage]       = useState(1)
+  const [filters, setFilters] = useState<VehicleFilterValues>({})
+  const [page,    setPage]    = useState(1)
 
   const marcaIdParam     = searchParams.get('marca_id')
   const marcaNombreParam = searchParams.get('marca_nombre')
 
-  const totalUnits  = allUnits.length
-  const totalGroups = groups.length
-  const totalPages  = Math.ceil(totalGroups / GROUPS_PER_PAGE)
-  const visibleGroups = groups.slice((page - 1) * GROUPS_PER_PAGE, page * GROUPS_PER_PAGE)
+  // React Query — marcas (5 min stale, compartida con BrandNav)
+  const { data: marcas = [] } = useMarcas()
+
+  // React Query — vehículos (1 min stale, se cachea entre navegaciones)
+  const apiFilters = {
+    marca_id:        filters.marca_id || (marcaIdParam ? Number(marcaIdParam) : undefined),
+    modelo_id:       filters.modelo_id,
+    anio:            filters.anio,
+    precio_min:      filters.precioMin,
+    precio_max:      filters.precioMax,
+    tipo:            filters.tipo,
+    kilometraje_max: filters.kilometrajeMax,
+    busqueda:        filters.busqueda,
+    per_page:        API_BATCH,
+    page:            1,
+  }
+  const { data: vehiculosData, isLoading: loading } = useQuery({
+    queryKey: ['vehiculos', apiFilters],
+    queryFn:  () => api.getVehiculos(apiFilters),
+    staleTime: 60_000,
+  })
+
+  const allUnits: Vehicle[] = useMemo(() => {
+    if (!vehiculosData) return []
+    const vehicles = vehiculosData.items.map(toVehicle)
+    return [...vehicles].sort((a, b) => {
+      if (a.destacado && !b.destacado) return -1
+      if (!a.destacado && b.destacado) return 1
+      return new Date(b.fechaPublicacion).getTime() - new Date(a.fechaPublicacion).getTime()
+    })
+  }, [vehiculosData])
+
+  const groups: GroupedVehicle[] = useMemo(() => groupVehicles(allUnits), [allUnits])
+
+  // Reset página cuando cambian los filtros o la marca en URL
+  useEffect(() => {
+    setPage(1)
+    hasScrolled.current = false
+  }, [marcaIdParam, filters])
 
   // Scroll al catálogo cuando se selecciona una marca
   useEffect(() => {
@@ -102,73 +135,12 @@ export function VehicleCatalog() {
     if (!marcaIdParam) hasScrolled.current = false
   }, [marcaIdParam, loading])
 
-  const fetchAll = useCallback(async (currentFilters: VehicleFilterValues, marcaId?: number) => {
-    setLoading(true)
-    try {
-      const res = await api.getVehiculos({
-        marca_id:        currentFilters.marca_id || marcaId,
-        modelo_id:       currentFilters.modelo_id,
-        anio:            currentFilters.anio,
-        precio_min:      currentFilters.precioMin,
-        precio_max:      currentFilters.precioMax,
-        tipo:            currentFilters.tipo,
-        kilometraje_max: currentFilters.kilometrajeMax,
-        busqueda:        currentFilters.busqueda,
-        per_page:        API_BATCH,
-        page:            1,
-      })
-      const vehicles = res.items.map(toVehicle)
-      const sorted = [...vehicles].sort((a, b) => {
-        if (a.destacado && !b.destacado) return -1
-        if (!a.destacado && b.destacado) return 1
-        return new Date(b.fechaPublicacion).getTime() - new Date(a.fechaPublicacion).getTime()
-      })
-      setAllUnits(sorted)
-      setGroups(groupVehicles(sorted))
-      setPage(1)
-    } catch (err) {
-      console.error('Error cargando catálogo:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const totalUnits  = allUnits.length
+  const totalGroups = groups.length
+  const totalPages  = Math.ceil(totalGroups / GROUPS_PER_PAGE)
+  const visibleGroups = groups.slice((page - 1) * GROUPS_PER_PAGE, page * GROUPS_PER_PAGE)
 
-  // Carga inicial y cuando cambia la marca en URL
-  useEffect(() => {
-    hasScrolled.current = false
-    const marcaId = marcaIdParam ? Number(marcaIdParam) : undefined
-    const init = async () => {
-      setLoading(true)
-      try {
-        const [marcasData, vehiculosData] = await Promise.all([
-          api.getMarcas(),
-          api.getVehiculos({ per_page: API_BATCH, page: 1, ...(marcaId ? { marca_id: marcaId } : {}) }),
-        ])
-        setMarcas(marcasData)
-        const vehicles = vehiculosData.items.map(toVehicle)
-        const sorted = [...vehicles].sort((a, b) => {
-          if (a.destacado && !b.destacado) return -1
-          if (!a.destacado && b.destacado) return 1
-          return new Date(b.fechaPublicacion).getTime() - new Date(a.fechaPublicacion).getTime()
-        })
-        setAllUnits(sorted)
-        setGroups(groupVehicles(sorted))
-        setPage(1)
-      } catch (err) {
-        console.error('Error cargando catálogo:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    init()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [marcaIdParam])
-
-  const handleFilterChange = useCallback((newFilters: VehicleFilterValues) => {
-    setFilters(newFilters)
-    const marcaId = marcaIdParam ? Number(marcaIdParam) : undefined
-    fetchAll(newFilters, marcaId)
-  }, [fetchAll, marcaIdParam])
+  const handleFilterChange = (newFilters: VehicleFilterValues) => setFilters(newFilters)
 
   const handlePageChange = (p: number) => {
     setPage(p)

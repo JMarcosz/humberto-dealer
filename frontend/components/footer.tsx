@@ -2,10 +2,8 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { useState, useEffect } from 'react'
 import { MapPin, Phone, Mail, Clock } from 'lucide-react'
-import { api } from '@/lib/api'
-import type { Usuario } from '@/lib/types'
+import { useCurrentUser } from '@/lib/queries'
 
 const INSTAGRAM = 'https://www.instagram.com/humbertoautoimportsrl?igsh=MTRobGN2MDNvMHp1dg=='
 const TIKTOK    = 'https://www.tiktok.com/@humbertoautoimport?is_from_webapp=1&sender_device=pc'
@@ -36,11 +34,7 @@ function WaIcon() {
 }
 
 export function Footer() {
-  const [user, setUser] = useState<Usuario | null>(null)
-
-  useEffect(() => {
-    api.getCurrentUser().then(setUser).catch(() => setUser(null))
-  }, [])
+  const { data: user } = useCurrentUser()
 
   return (
     <footer id="contacto" className="bg-[#0d0d0d] text-white">

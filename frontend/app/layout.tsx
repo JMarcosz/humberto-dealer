@@ -3,6 +3,7 @@ import { Inter, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { TransitionOverlay } from '@/components/transition-overlay'
+import { Providers } from '@/app/providers'
 import './globals.css'
 
 const inter = Inter({ 
@@ -45,10 +46,12 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${inter.variable} ${geistMono.variable} bg-background`} suppressHydrationWarning>
       <body className="font-sans antialiased min-h-screen" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <TransitionOverlay />
-          {children}
-        </ThemeProvider>
+        <Providers>
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+            <TransitionOverlay />
+            {children}
+          </ThemeProvider>
+        </Providers>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

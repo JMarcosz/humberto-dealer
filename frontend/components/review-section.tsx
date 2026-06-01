@@ -14,8 +14,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { AlertCircle, MessageSquare, LogIn, Loader2, Heart, MoreVertical, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
-import type { Usuario, Resena } from '@/lib/types'
+import type { Resena } from '@/lib/types'
 import { formatDate } from '@/lib/format'
+import { useCurrentUser } from '@/lib/queries'
 
 interface ReviewSectionProps {
   vehiculoId: string
@@ -23,8 +24,7 @@ interface ReviewSectionProps {
 
 export function ReviewSection({ vehiculoId }: ReviewSectionProps) {
   const router = useRouter()
-  const [user, setUser]                   = useState<Usuario | null>(null)
-  const [checkingAuth, setCheckingAuth]   = useState(true)
+  const { data: user, isLoading: checkingAuth } = useCurrentUser()
   const [reviews, setReviews]             = useState<Resena[]>([])
   const [loadingReviews, setLoadingReviews] = useState(true)
   const [newRating, setNewRating]         = useState(0)
@@ -35,13 +35,6 @@ export function ReviewSection({ vehiculoId }: ReviewSectionProps) {
   const [submitError, setSubmitError]     = useState<string | null>(null)
   const [likingId, setLikingId]           = useState<number | null>(null)
   const [deletingId, setDeletingId]       = useState<number | null>(null)
-
-  useEffect(() => {
-    api.getCurrentUser()
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setCheckingAuth(false))
-  }, [])
 
   useEffect(() => {
     api.getResenasVehiculo(Number(vehiculoId))

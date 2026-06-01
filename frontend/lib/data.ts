@@ -1,9 +1,10 @@
 /**
  * data.ts — Capa de acceso a datos para Server Components.
  * Todos los exports son async. Usa el api client → Flask backend → MySQL.
- * Para Client Components usa el api client directamente desde lib/api.ts.
+ * Para Client Components usa lib/queries.ts (TanStack Query).
  */
 
+import { cache } from 'react'
 import { api } from './api'
 import { toVehicle } from './types'
 import type { Vehicle, Marca, Modelo } from './types'
@@ -12,35 +13,35 @@ import type { Vehicle, Marca, Modelo } from './types'
 // VEHÍCULOS
 // ---------------------------------------------------------------------------
 
-export async function getVehiculos(): Promise<Vehicle[]> {
+export const getVehiculos = cache(async (): Promise<Vehicle[]> => {
   try {
     const res = await api.getVehiculos({ per_page: 100 })
     return res.items.map(toVehicle)
   } catch {
     return []
   }
-}
+})
 
-export async function getVehiculoById(id: string | number): Promise<Vehicle | null> {
+export const getVehiculoById = cache(async (id: string | number): Promise<Vehicle | null> => {
   try {
     const v = await api.getVehiculo(Number(id))
     return toVehicle(v)
   } catch {
     return null
   }
-}
+})
 
 // ---------------------------------------------------------------------------
 // MARCAS
 // ---------------------------------------------------------------------------
 
-export async function getMarcasData(): Promise<Marca[]> {
+export const getMarcasData = cache(async (): Promise<Marca[]> => {
   try {
     return await api.getMarcas()
   } catch {
     return []
   }
-}
+})
 
 export async function getMarcas(): Promise<string[]> {
   const marcas = await getMarcasData()
@@ -51,13 +52,13 @@ export async function getMarcas(): Promise<string[]> {
 // MODELOS
 // ---------------------------------------------------------------------------
 
-export async function getModelosPorMarca(marcaId: number): Promise<Modelo[]> {
+export const getModelosPorMarca = cache(async (marcaId: number): Promise<Modelo[]> => {
   try {
     return await api.getModelosPorMarca(marcaId)
   } catch {
     return []
   }
-}
+})
 
 export async function getModelosByMarca(marcaNombre: string): Promise<string[]> {
   try {
