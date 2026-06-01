@@ -39,7 +39,7 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Error de red' }))
-      throw new Error(error.error || `Error ${response.status}`)
+      throw new Error(`${response.status}: ${error.error || 'Error de red'}`)
     }
 
     return response.json()
@@ -246,7 +246,7 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Error de red' }))
-      throw new Error(error.error || `Error ${response.status}`)
+      throw new Error(`${response.status}: ${error.error || 'Error de red'}`)
     }
 
     return response.json()
@@ -302,7 +302,7 @@ class ApiClient {
     })
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Error de red' }))
-      throw new Error(error.error || `Error ${response.status}`)
+      throw new Error(`${response.status}: ${error.error || 'Error de red'}`)
     }
     return response.json()
   }

@@ -32,11 +32,10 @@ export function VehicleActions({ vehicleId, whatsappUrl, estado }: VehicleAction
       setReserved(true)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : ''
-      // Si el error es 401 (no autenticado), redirigir al login
       if (msg.includes('401') || msg.toLowerCase().includes('no autenticado') || msg.toLowerCase().includes('unauthorized')) {
         router.push(`/login?redirect=/vehiculo/${vehicleId}`)
       } else {
-        setReserveError('No se pudo crear la reserva. Inicia sesión o intenta de nuevo.')
+        setReserveError(msg || 'No se pudo crear la reserva. Inicia sesión o intenta de nuevo.')
       }
     } finally {
       setReserving(false)
