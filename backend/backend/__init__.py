@@ -7,6 +7,8 @@ from flask_login import LoginManager
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_compress import Compress
+from flask_caching import Cache
 
 from .config import get_config
 from .models.base import db
@@ -15,6 +17,8 @@ from .models.users import Usuario
 bcrypt        = Bcrypt()
 login_manager = LoginManager()
 limiter       = Limiter(key_func=get_remote_address, default_limits=["200 per minute"])
+cache         = Cache()
+compress      = Compress()
 
 
 @login_manager.unauthorized_handler
@@ -31,11 +35,12 @@ def create_app() -> Flask:
     bcrypt.init_app(app)
     login_manager.init_app(app)
     limiter.init_app(app)
+    cache.init_app(app, config={"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300})
+    compress.init_app(app)
 
     # CORS — orígenes permitidos según entorno
-    frontend_url = app.config.get("FRONTEND_URL", "https://humberto-dealer.vercel.app/")
-    allowed_origins = list({frontend_url, "https://humberto-dealer.vercel.app/"})
-    CORS(app, origins=allowed_origins, supports_credentials=True)
+    frontend_url = app.config.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    CORS(app, origins=[frontend_url], supports_credentials=True)
 
     # Logging
     logging.basicConfig(
@@ -77,26 +82,26 @@ def create_app() -> Flask:
         upload_dir = app.config.get('UPLOAD_FOLDER', '/tmp')
         return send_from_directory(os.path.join(upload_dir), filename)
 
-    # ── Headers de seguridad en todas las respuestas ──────────────────────────
+    # ── Headers de seguridad y caché en todas las respuestas ─────────────────
     @app.after_request
     def add_security_headers(response):
-        # Evita que la página se embeba en iframes de otros sitios (clickjacking)
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-        # El navegador no adivina el tipo MIME (evita ataques de sniffing)
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        # Filtro XSS del navegador
         response.headers['X-XSS-Protection'] = '1; mode=block'
-        # Controla qué información de referencia se envía
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        # Fuerza HTTPS por 1 año en producción
         if not app.debug:
             response.headers['Strict-Transport-Security'] = (
                 'max-age=31536000; includeSubDomains; preload'
             )
-        # No cachear respuestas de autenticación
-        if request.path.startswith('/api/auth'):
+
+        path = request.path
+        if path.startswith('/api/auth'):
             response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
             response.headers['Pragma'] = 'no-cache'
+        elif path.startswith('/api/catalogo/marcas') and request.method == 'GET':
+            response.headers['Cache-Control'] = 'public, max-age=300'
+        elif path == '/api/catalogo/vehiculos' and request.method == 'GET':
+            response.headers['Cache-Control'] = 'public, max-age=60, stale-while-revalidate=300'
         return response
 
     # ── Manejadores de error globales ─────────────────────────────────────────

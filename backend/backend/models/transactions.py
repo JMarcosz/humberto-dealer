@@ -6,6 +6,10 @@ from sqlalchemy.dialects import mysql
 
 class Reserva(db.Model):
     __tablename__ = "reservas"
+    __table_args__ = (
+        db.Index("ix_reservas_estado",     "estado"),
+        db.Index("ix_reservas_creado_en",  "creado_en"),
+    )
 
     id             = db.Column(mysql.INTEGER(unsigned=True), primary_key=True, autoincrement=True)
     vehiculo_id    = db.Column(mysql.INTEGER(unsigned=True), db.ForeignKey("vehiculos.id"), nullable=False)
@@ -79,6 +83,9 @@ class Cita(db.Model):
 
 class Venta(db.Model):
     __tablename__ = "ventas"
+    __table_args__ = (
+        db.Index("ix_ventas_fecha_hora", "fecha_hora"),
+    )
 
     id              = db.Column(mysql.INTEGER(unsigned=True), primary_key=True, autoincrement=True)
     vehiculo_id     = db.Column(mysql.INTEGER(unsigned=True), db.ForeignKey("vehiculos.id"), nullable=False)
@@ -137,6 +144,10 @@ class Pago(db.Model):
 
 class Resena(db.Model):
     __tablename__ = "resenas"
+    __table_args__ = (
+        db.Index("ix_resenas_vehiculo_id", "vehiculo_id"),
+        db.Index("ix_resenas_creado_en",   "creado_en"),
+    )
 
     id              = db.Column(mysql.INTEGER(unsigned=True), primary_key=True, autoincrement=True)
     usuario_id      = db.Column(mysql.INTEGER(unsigned=True), db.ForeignKey("usuarios.id"), nullable=False)

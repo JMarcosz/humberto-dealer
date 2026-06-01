@@ -6,6 +6,8 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request, current_app
 from werkzeug.utils import secure_filename
 
+from sqlalchemy.orm import joinedload, selectinload
+
 from ..models import db, Vehiculo, Venta, Reserva, Cliente, Pago, VehiculoImagen, Marca, Modelo
 from ..decorators import admin_required
 from ..validators import forzar_mayusculas, validar_mayusculas
@@ -38,7 +40,15 @@ def listar_vehiculos_admin():
         per_page = request.args.get("per_page", 20, type=int)
         buscar   = request.args.get("buscar", "").strip()
 
-        q = Vehiculo.query.join(Modelo).join(Marca)
+        q = (
+            Vehiculo.query
+            .join(Modelo)
+            .join(Marca)
+            .options(
+                joinedload(Vehiculo.modelo).joinedload(Modelo.marca),
+                selectinload(Vehiculo.imagenes),
+            )
+        )
 
         if estado:
             estado_upper = estado.upper()
@@ -57,13 +67,13 @@ def listar_vehiculos_admin():
             )
 
         paginado = q.order_by(Vehiculo.creado_en.desc()).paginate(
-            page=page, per_page=min(per_page, 500), error_out=False
+            page=page, per_page=min(per_page, 100), error_out=False
         )
         return jsonify({
             "total": paginado.total,
             "page":  paginado.page,
             "pages": paginado.pages,
-            "items": [v.to_dict() for v in paginado.items],
+            "items": [v.to_dict_summary() for v in paginado.items],
         })
     except Exception as exc:
         log.error("listar_vehiculos_admin: %s", exc)
@@ -217,7 +227,10 @@ def listar_reservas_admin():
         per_page = request.args.get("per_page", 30, type=int)
         estado   = request.args.get("estado")
 
-        q = Reserva.query
+        q = Reserva.query.options(
+            joinedload(Reserva.vehiculo).joinedload(Vehiculo.modelo).joinedload(Modelo.marca),
+            joinedload(Reserva.cliente),
+        )
         if estado:
             q = q.filter_by(estado=estado.upper())
         paginado = q.order_by(Reserva.creado_en.desc()).paginate(
@@ -227,14 +240,12 @@ def listar_reservas_admin():
         items = []
         for r in paginado.items:
             item = r.to_dict()
-            # Incluir nombre del vehículo
             if r.vehiculo and r.vehiculo.modelo:
                 marca  = r.vehiculo.modelo.marca.nombre if r.vehiculo.modelo.marca else ""
                 modelo = r.vehiculo.modelo.nombre
                 item["vehiculo_nombre"] = f"{marca} {modelo}".strip()
             else:
                 item["vehiculo_nombre"] = f"Vehículo #{r.vehiculo_id}"
-            # Incluir nombre completo del cliente (nombre + apellido)
             if r.cliente:
                 item["cliente_nombre"] = f"{r.cliente.nombre} {r.cliente.apellido}".strip()
             else:
@@ -258,6 +269,11 @@ def historico_ventas():
         per_page = request.args.get("per_page", 30, type=int)
         paginado = (
             Venta.query
+            .options(
+                joinedload(Venta.vehiculo).joinedload(Vehiculo.modelo).joinedload(Modelo.marca),
+                joinedload(Venta.cliente),
+                selectinload(Venta.pagos),
+            )
             .order_by(Venta.fecha_hora.desc())
             .paginate(page=page, per_page=min(per_page, 100), error_out=False)
         )

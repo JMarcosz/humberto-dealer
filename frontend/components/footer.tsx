@@ -5,9 +5,9 @@ import Image from 'next/image'
 import { MapPin, Phone, Mail, Clock } from 'lucide-react'
 import { useCurrentUser } from '@/lib/queries'
 
-const INSTAGRAM = 'https://www.instagram.com/humbertoautoimportsrl?igsh=MTRobGN2MDNvMHp1dg=='
-const TIKTOK    = 'https://www.tiktok.com/@humbertoautoimport?is_from_webapp=1&sender_device=pc'
-const WHATSAPP  = 'https://wa.me/18495809586?text=Hola,%20estoy%20interesado%20en%20un%20vehículo'
+const INSTAGRAM = process.env.NEXT_PUBLIC_INSTAGRAM_URL!
+const TIKTOK    = process.env.NEXT_PUBLIC_TIKTOK_URL!
+const WHATSAPP  = process.env.NEXT_PUBLIC_WHATSAPP_LINK!
 
 function IgIcon() {
   return (
@@ -103,18 +103,18 @@ export function Footer() {
             <ul className="space-y-3 text-sm">
               <li className="flex items-start gap-2 text-white/50">
                 <MapPin className="h-4 w-4 mt-0.5 text-orange-500 shrink-0" />
-                <span>Prol. Av. 27 de Febrero 467, Santo Domingo</span>
+                <span>{process.env.NEXT_PUBLIC_BUSINESS_ADDRESS}</span>
               </li>
               <li className="flex items-center gap-2">
                 <Phone className="h-4 w-4 text-orange-500 shrink-0" />
-                <a href="tel:+18495809586" className="text-white/50 hover:text-orange-500 transition-colors">
-                  +1 (849) 580-9586
+                <a href={`tel:+${process.env.NEXT_PUBLIC_PHONE_NUMBER}`} className="text-white/50 hover:text-orange-500 transition-colors">
+                  {process.env.NEXT_PUBLIC_PHONE_FORMATTED}
                 </a>
               </li>
               <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-orange-500 shrink-0" />
-                <a href="mailto:info@humbertoautoimport.com" className="text-white/50 hover:text-orange-500 transition-colors">
-                  info@humbertoautoimport.com
+                <a href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL}`} className="text-white/50 hover:text-orange-500 transition-colors">
+                  {process.env.NEXT_PUBLIC_CONTACT_EMAIL}
                 </a>
               </li>
             </ul>

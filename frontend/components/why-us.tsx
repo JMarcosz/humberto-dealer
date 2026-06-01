@@ -34,7 +34,7 @@ const FEATURES = [
   { icon: CreditCard,  title: 'Financiamiento Disponible',    desc: 'Te ayudamos a encontrar el plan de financiamiento que mejor se adapta a tu presupuesto y perfil crediticio.' },
   { icon: Headphones,  title: 'Atención Personalizada',       desc: 'Nuestro equipo de expertos está disponible para asesorarte en cada paso del proceso de compra o reserva.' },
   { icon: Award,       title: 'Más de 15 Años de Experiencia',desc: 'Desde 2010 somos referente en importación de vehículos en República Dominicana, con miles de clientes satisfechos.' },
-  { icon: MapPin,      title: 'Ubicación Céntrica',           desc: 'Nos encontramos en Prol. Av. 27 de Febrero 467, Santo Domingo — fácil acceso desde cualquier punto de la ciudad.' },
+  { icon: MapPin,      title: 'Ubicación Céntrica',           desc: `Nos encontramos en ${process.env.NEXT_PUBLIC_BUSINESS_ADDRESS} — fácil acceso desde cualquier punto de la ciudad.` },
   { icon: Star,        title: 'Vehículos Verificados',        desc: 'Todos nuestros vehículos tienen historial verificado, documentación en regla y están libres de gravámenes.' },
   { icon: RefreshCw,   title: 'Inventario Actualizado',       desc: 'Renovamos nuestro inventario constantemente para ofrecerte siempre las mejores opciones del mercado de importación.' },
 ]

@@ -114,7 +114,7 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
             </div>
             <div className="flex items-start gap-2">
               <MapPin className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />
-              <span>Prol. Av. 27 de Febrero 467, Santo Domingo</span>
+              <span>{process.env.NEXT_PUBLIC_BUSINESS_ADDRESS}</span>
             </div>
             {vehicle.descripcion && (
               <p className="mt-1 line-clamp-2 text-foreground/70">{vehicle.descripcion}</p>

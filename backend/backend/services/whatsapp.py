@@ -27,10 +27,8 @@ from ..models import db, Vehiculo, Marca, Modelo
 
 log = logging.getLogger(__name__)
 
-GRAPH_URL    = "https://graph.facebook.com/v19.0"
-JOHN_NUMBER  = "18094346968"
-OWNER_NUMBER = "18094346968"
-TZ_RD        = ZoneInfo("America/Santo_Domingo")
+GRAPH_URL = "https://graph.facebook.com/v19.0"
+TZ_RD     = ZoneInfo("America/Santo_Domingo")
 
 # Horario de atención: clave = día semana (0=Lun), valor = (apertura, cierre) en horas
 HORARIO = {
@@ -39,9 +37,6 @@ HORARIO = {
     # 6 = domingo: cerrado (no aparece)
 }
 
-# Actualizar estas URLs cuando el sitio esté en producción
-CATALOGO_URL = "https://humbertodealer.com"
-MAPS_URL     = "https://maps.app.goo.gl/GAbD6oebVKb52NJFA"
 
 MENU_PRINCIPAL = (
     "Bienvenido a *Humberto Auto Import* el que te monta fácil. 🚗\n\n"
@@ -145,13 +140,17 @@ def _procesar_followups() -> None:
 class WhatsAppService:
 
     def __init__(self):
-        self.api_key  = current_app.config["WHATSAPP_API_KEY"]
-        self.phone_id = current_app.config["WHATSAPP_PHONE_NUMBER_ID"]
-        self.base_url = f"{GRAPH_URL}/{self.phone_id}/messages"
-        self.headers  = {
+        self.api_key        = current_app.config["WHATSAPP_API_KEY"]
+        self.phone_id       = current_app.config["WHATSAPP_PHONE_NUMBER_ID"]
+        self.base_url       = f"{GRAPH_URL}/{self.phone_id}/messages"
+        self.headers        = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type":  "application/json",
         }
+        self.owner_number   = current_app.config.get("WHATSAPP_OWNER_NUMBER", "")
+        self.catalogo_url   = current_app.config.get("CATALOG_URL", "")
+        self.maps_url       = current_app.config.get("GOOGLE_MAPS_LINK", "")
+        self.dealer_address = current_app.config.get("DEALER_ADDRESS", "")
 
     # ── Envíos ────────────────────────────────────────────────────────────────
 
@@ -176,10 +175,10 @@ class WhatsAppService:
             "to":   destinatario,
             "type": "location",
             "location": {
-                "latitude":  18.4861,
-                "longitude": -69.9312,
+                "latitude":  current_app.config.get("DEALER_LAT", 18.4861),
+                "longitude": current_app.config.get("DEALER_LNG", -69.9312),
                 "name":      "Humberto Auto Import",
-                "address":   "Prol. Av. 27 de Febrero 467, Santo Domingo",
+                "address":   self.dealer_address,
             },
         }
         try:
@@ -252,8 +251,8 @@ class WhatsAppService:
         if t in ("ubicacion", "ubicación", "donde quedan", "donde están", "mapa"):
             self.enviar_ubicacion(from_)
             self.enviar_texto(from_,
-                "📍 *Prol. Av. 27 de Febrero 467, Santo Domingo*\n"
-                f"🗺️ {MAPS_URL}\n\n"
+                f"📍 *{self.dealer_address}*\n"
+                f"🗺️ {self.maps_url}\n\n"
                 "⏰ Lun-Vie 9AM-7PM | Sáb 9AM-5PM"
             )
             return
@@ -374,7 +373,7 @@ class WhatsAppService:
             self.enviar_texto(from_,
                 f"✅ *¡Perfecto!* Quedamos para *{texto}*.\n\n"
                 "📍 Te esperamos en:\n"
-                "Prol. Av. 27 de Febrero 467, Santo Domingo\n\n"
+                f"{self.dealer_address}\n\n"
                 "Si quieres la ubicación exacta escribe *ubicacion*. "
                 "¡Hasta pronto! 🚗😊"
             )
@@ -402,7 +401,7 @@ class WhatsAppService:
         ses["followup_enviado"]   = False
         self.enviar_texto(from_,
             "🚗 *¡Aquí está nuestro catálogo digital!*\n\n"
-            f"👇 {CATALOGO_URL}\n\n"
+            f"👇 {self.catalogo_url}\n\n"
             "Si ves algún modelo que te guste, *tómale un screenshot y envíalo por aquí* "
             "para darte todos los detalles y el precio. 📸\n\n"
             "¡Estamos para ayudarte!"
@@ -423,8 +422,8 @@ class WhatsAppService:
         """Automatización 4 — Información General y Ubicación."""
         self.enviar_texto(from_,
             "📍 *Información General — Humberto Auto Import*\n\n"
-            "🏢 *Dirección:* Prol. Av. 27 de Febrero 467, Santo Domingo\n"
-            f"🗺️ Google Maps: {MAPS_URL}\n\n"
+            f"🏢 *Dirección:* {self.dealer_address}\n"
+            f"🗺️ Google Maps: {self.maps_url}\n\n"
             "⏰ *Horario de atención:*\n"
             "Lun-Vie: 9:00 AM – 7:00 PM\n"
             "Sábado:  9:00 AM – 5:00 PM\n"
@@ -555,7 +554,7 @@ class WhatsAppService:
                 nombre = f"{marca_encontrada.nombre if marca_encontrada else ''} {modelo_encontrado.nombre if modelo_encontrado else ''} {anio or ''}".strip()
                 return (
                     f"😔 No encontramos *{nombre}* disponible en este momento.\n\n"
-                    f"👇 Revisa todo el inventario en: {CATALOGO_URL}\n\n"
+                    f"👇 Revisa todo el inventario en: {self.catalogo_url}\n\n"
                     "_Escribe *menu* para ver otras opciones._"
                 )
 
@@ -588,7 +587,7 @@ class WhatsAppService:
     # ── Notificaciones a John ─────────────────────────────────────────────────
 
     def _notificar_cliente_nuevo(self, numero: str, primer_mensaje: str) -> None:
-        self.enviar_texto(JOHN_NUMBER,
+        self.enviar_texto(self.owner_number,
             "🔔 *NUEVO CLIENTE — Humberto Auto Import*\n\n"
             f"📱 Número: +{numero}\n"
             f"💬 Primer mensaje: _{primer_mensaje}_\n"
@@ -599,7 +598,7 @@ class WhatsAppService:
     def _notificar_agente_solicitado(self, numero: str, ses: dict) -> None:
         historial = "\n".join(ses["historial"][-10:])
         nombre    = ses.get("nombre_cliente") or "No indicó"
-        self.enviar_texto(JOHN_NUMBER,
+        self.enviar_texto(self.owner_number,
             "🚨 *CLIENTE SOLICITA HABLAR CON ASESOR*\n\n"
             f"📱 Número: +{numero}\n"
             f"👤 Nombre: {nombre}\n"
@@ -609,13 +608,13 @@ class WhatsAppService:
         )
 
     def _notificar_respuesta_cliente(self, numero: str, texto: str) -> None:
-        self.enviar_texto(JOHN_NUMBER,
+        self.enviar_texto(self.owner_number,
             f"💬 *Mensaje de cliente +{numero}* (en espera de asesor):\n_{texto}_"
         )
 
     def _notificar_cotizacion(self, numero: str, cot: dict) -> None:
         es_import = cot.get("flujo") == "importacion"
-        self.enviar_texto(JOHN_NUMBER,
+        self.enviar_texto(self.owner_number,
             f"💰 *{'SOLICITUD DE IMPORTACIÓN' if es_import else 'NUEVA COTIZACIÓN'}*\n\n"
             f"📱 Número: +{numero}\n"
             f"🚗 Vehículo: {cot.get('vehiculo', 'N/A')}\n"
@@ -626,7 +625,7 @@ class WhatsAppService:
 
     def _notificar_cita(self, numero: str, fecha: str, ses: dict) -> None:
         nombre = ses.get("nombre_cliente") or f"+{numero}"
-        self.enviar_texto(JOHN_NUMBER,
+        self.enviar_texto(self.owner_number,
             "📅 *NUEVA CITA / TEST DRIVE*\n\n"
             f"📱 Número: +{numero}\n"
             f"👤 Cliente: {nombre}\n"
@@ -635,7 +634,7 @@ class WhatsAppService:
         )
 
     def _notificar_traspaso(self, numero: str, info: str) -> None:
-        self.enviar_texto(JOHN_NUMBER,
+        self.enviar_texto(self.owner_number,
             "📋 *CONSULTA DE TRASPASO/PLACA*\n\n"
             f"📱 Número: +{numero}\n"
             f"📝 Info del cliente: {info}\n"
@@ -647,5 +646,5 @@ class WhatsAppService:
             "✅ *Tu reserva ha sido registrada.*\n"
             f"Vehículo: {vehiculo_info}\n\n"
             "Nos contactaremos pronto para confirmar los detalles.\n"
-            "📍 Prol. Av. 27 de Febrero 467, Santo Domingo"
+            f"📍 {self.dealer_address}"
         )

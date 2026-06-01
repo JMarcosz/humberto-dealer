@@ -58,6 +58,15 @@ class Modelo(db.Model):
 
 class Vehiculo(db.Model):
     __tablename__ = "vehiculos"
+    __table_args__ = (
+        db.Index("ix_vehiculos_estado",        "estado"),
+        db.Index("ix_vehiculos_publicado_en",  "publicado_en"),
+        db.Index("ix_vehiculos_creado_en",     "creado_en"),
+        db.Index("ix_vehiculos_anio",          "anio"),
+        db.Index("ix_vehiculos_precio",        "precio"),
+        db.Index("ix_vehiculos_kilometraje",   "kilometraje"),
+        db.Index("ix_vehiculos_estado_pub",    "estado", "publicado_en"),
+    )
 
     id               = db.Column(mysql.INTEGER(unsigned=True), primary_key=True, autoincrement=True)
     modelo_id        = db.Column(mysql.INTEGER(unsigned=True), db.ForeignKey("modelos.id"), nullable=False)
@@ -107,6 +116,33 @@ class Vehiculo(db.Model):
         if include_imagenes:
             data["imagenes"] = [img.to_dict() for img in self.imagenes]
         return data
+
+    def to_dict_summary(self) -> dict:
+        """Versión ligera para listados — omite descripcion y campos pesados."""
+        modelo = self.modelo
+        marca  = modelo.marca if modelo else None
+        return {
+            "id": self.id,
+            "modelo": {
+                "id":       modelo.id      if modelo else None,
+                "nombre":   modelo.nombre  if modelo else None,
+                "categoria": modelo.categoria if modelo else None,
+                "marca": {
+                    "id":     marca.id     if marca else None,
+                    "nombre": marca.nombre if marca else None,
+                } if marca else None,
+            },
+            "anio":        self.anio,
+            "vin":         self.vin,
+            "color":       self.color,
+            "precio":      float(self.precio),
+            "kilometraje": self.kilometraje,
+            "combustible": self.combustible,
+            "transmision": self.transmision,
+            "estado":      self.estado,
+            "publicado_en": self.publicado_en.isoformat() if self.publicado_en else None,
+            "imagenes":    [img.to_dict() for img in self.imagenes],
+        }
 
 
 class VehiculoImagen(db.Model):

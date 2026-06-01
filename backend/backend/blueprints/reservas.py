@@ -3,7 +3,9 @@ import logging
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
-from ..models import db, Vehiculo, Reserva, Cliente
+from sqlalchemy.orm import joinedload
+
+from ..models import db, Vehiculo, Reserva, Cliente, Modelo, Marca
 from ..decorators import login_required_api
 
 bp  = Blueprint("reservas", __name__)
@@ -101,9 +103,17 @@ def mis_reservas():
         cliente = Cliente.query.filter_by(usuario_id=current_user.id).first()
         if not cliente:
             return jsonify([])
-        reservas = Reserva.query.filter_by(cliente_id=cliente.id).order_by(
-            Reserva.creado_en.desc()
-        ).all()
+        reservas = (
+            Reserva.query
+            .filter_by(cliente_id=cliente.id)
+            .options(
+                joinedload(Reserva.vehiculo)
+                .joinedload(Vehiculo.modelo)
+                .joinedload(Modelo.marca)
+            )
+            .order_by(Reserva.creado_en.desc())
+            .all()
+        )
         items = []
         for r in reservas:
             item = r.to_dict()

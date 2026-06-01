@@ -43,9 +43,17 @@ class Config:
     FRONTEND_URL = os.getenv("FRONTEND_URL", "https://humberto-dealer.vercel.app/")
 
     # Dealer location
-    DEALER_LAT   = float(os.getenv("DEALER_LAT", "18.4861"))
-    DEALER_LNG   = float(os.getenv("DEALER_LNG", "-69.9312"))
-    DEALER_PLACE = os.getenv("DEALER_PLACE", "Piantini, Santo Domingo, República Dominicana")
+    DEALER_LAT     = float(os.getenv("DEALER_LAT", "18.4861"))
+    DEALER_LNG     = float(os.getenv("DEALER_LNG", "-69.9312"))
+    DEALER_PLACE   = os.getenv("DEALER_PLACE", "Piantini, Santo Domingo, República Dominicana")
+    DEALER_ADDRESS = os.getenv("DEALER_ADDRESS", "Prol. Av. 27 de Febrero 467, Santo Domingo")
+
+    # WhatsApp — número para notificaciones internas al dueño/asesor
+    WHATSAPP_OWNER_NUMBER = os.getenv("WHATSAPP_OWNER_NUMBER", "")
+
+    # Catálogo público y ubicación (usados por el bot de WhatsApp)
+    CATALOG_URL      = os.getenv("CATALOG_URL", "")
+    GOOGLE_MAPS_LINK = os.getenv("GOOGLE_MAPS_LINK", "")
 
     # Excel uploads
     UPLOAD_FOLDER = os.getenv(

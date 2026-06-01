@@ -113,7 +113,7 @@ export function toVehicle(v: VehiculoAPI): Vehicle {
     destacado:       v.estado === 'DISPONIBLE',
     fechaPublicacion: v.publicado_en ?? new Date().toISOString(),
     ubicacion: {
-      direccion: 'Prol. Av. 27 de Febrero 467, Santo Domingo',
+      direccion: process.env.NEXT_PUBLIC_BUSINESS_ADDRESS ?? 'Prol. Av. 27 de Febrero 467, Santo Domingo',
       lat: 18.463905,
       lng: -69.993384,
     },

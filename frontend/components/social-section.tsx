@@ -1,7 +1,7 @@
 'use client'
 
-const INSTAGRAM_URL = 'https://www.instagram.com/humbertoautoimportsrl?igsh=MTRobGN2MDNvMHp1dg=='
-const TIKTOK_URL    = 'https://www.tiktok.com/@humbertoautoimport?is_from_webapp=1&sender_device=pc'
+const INSTAGRAM_URL = process.env.NEXT_PUBLIC_INSTAGRAM_URL!
+const TIKTOK_URL    = process.env.NEXT_PUBLIC_TIKTOK_URL!
 
 function InstagramIcon() {
   return (
@@ -46,8 +46,8 @@ const SOCIALS = [
   },
   {
     label: 'WhatsApp',
-    handle: '+1 (849) 580-9586',
-    url: 'https://wa.me/18495809586?text=Hola,%20estoy%20interesado%20en%20un%20vehículo',
+    handle: process.env.NEXT_PUBLIC_PHONE_FORMATTED!,
+    url: process.env.NEXT_PUBLIC_WHATSAPP_LINK!,
     icon: WhatsAppIcon,
     gradient: 'from-green-600 to-green-400',
     desc: 'Contáctanos directamente por WhatsApp para consultas, reservas y atención inmediata.',

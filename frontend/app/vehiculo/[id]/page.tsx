@@ -80,9 +80,10 @@ export default async function VehiclePage({ params }: PageProps) {
   const whatsappMessage = encodeURIComponent(
     `Hola, estoy interesado en el ${vehicle.marca} ${vehicle.modelo} ${vehicle.año} que vi en su catálogo. ¿Podría darme más información y el precio final?`
   )
-  const whatsappUrl = `https://wa.me/18495809586?text=${whatsappMessage}`
-  const mapsUrl = 'https://www.google.com/maps/place/Prol.+Av.+27+de+Febrero+467,+Santo+Domingo/@18.463905,-69.9959589,1190m/data=!3m2!1e3!4b1!4m6!3m5!1s0x8ea561d0d74b872b:0xdfb43add602bb6ac!8m2!3d18.463905!4d-69.993384!16s%2Fg%2F11fsrgh5kl?entry=ttu'
-  const wazeUrl = 'https://www.waze.com/es/live-map/directions/do/santo-domingo/santo-domingo/prol.-av.-27-de-febrero-467?to=place.ChIJK4dL19BhpY4RrLYrYN06tN8'
+  const whatsappBase = process.env.NEXT_PUBLIC_PHONE_NUMBER
+  const whatsappUrl  = `https://wa.me/${whatsappBase}?text=${whatsappMessage}`
+  const mapsUrl      = process.env.NEXT_PUBLIC_GOOGLE_MAPS_URL!
+  const wazeUrl      = process.env.NEXT_PUBLIC_WAZE_URL!
 
   const estadoStyles = {
     disponible: 'bg-green-500/10 text-green-600 border-green-500/20',

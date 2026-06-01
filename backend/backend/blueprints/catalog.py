@@ -3,9 +3,11 @@ import logging
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from sqlalchemy import and_
+from sqlalchemy.orm import joinedload, selectinload
 
 from ..models import db, Marca, Modelo, Vehiculo, Resena, ResenaLike
 from ..decorators import login_required_api
+from backend import cache
 
 bp = Blueprint("catalog", __name__)
 log = logging.getLogger(__name__)
@@ -17,6 +19,7 @@ ESTADOS_PUBLICOS = ("DISPONIBLE", "RESERVADO")
 # GET /api/catalogo/marcas
 # ---------------------------------------------------------------
 @bp.get("/marcas")
+@cache.cached(timeout=300)
 def listar_marcas():
     try:
         marcas = (
@@ -38,10 +41,17 @@ def listar_marcas():
 # GET /api/catalogo/marcas/<marca_id>/modelos
 # ---------------------------------------------------------------
 @bp.get("/marcas/<int:marca_id>/modelos")
+@cache.cached(timeout=300, query_string=True)
 def listar_modelos_por_marca(marca_id: int):
     try:
         marca = db.get_or_404(Marca, marca_id)
-        modelos = Modelo.query.filter_by(marca_id=marca.id).order_by(Modelo.nombre).all()
+        modelos = (
+            Modelo.query
+            .filter_by(marca_id=marca.id)
+            .options(joinedload(Modelo.marca))
+            .order_by(Modelo.nombre)
+            .all()
+        )
         return jsonify([m.to_dict() for m in modelos])
     except Exception as exc:
         log.error("listar_modelos_por_marca: %s", exc)
@@ -81,7 +91,16 @@ def listar_vehiculos():
             filtros.append(Vehiculo.kilometraje <= km_max)
 
         busqueda = request.args.get("busqueda", "").strip()
-        q = Vehiculo.query.join(Modelo).join(Marca).filter(and_(*filtros))
+        q = (
+            Vehiculo.query
+            .join(Modelo)
+            .join(Marca)
+            .options(
+                joinedload(Vehiculo.modelo).joinedload(Modelo.marca),
+                selectinload(Vehiculo.imagenes),
+            )
+            .filter(and_(*filtros))
+        )
         if busqueda:
             like = f"%{busqueda}%"
             q = q.filter(db.or_(Marca.nombre.ilike(like), Modelo.nombre.ilike(like)))
@@ -89,14 +108,14 @@ def listar_vehiculos():
         paginado = (
             q
             .order_by(Vehiculo.publicado_en.desc())
-            .paginate(page=page, per_page=min(per_page, 500), error_out=False)
+            .paginate(page=page, per_page=min(per_page, 200), error_out=False)
         )
 
         return jsonify({
             "total":   paginado.total,
             "page":    paginado.page,
             "pages":   paginado.pages,
-            "items":   [v.to_dict(include_imagenes=True) for v in paginado.items],
+            "items":   [v.to_dict_summary() for v in paginado.items],
         })
     except Exception as exc:
         log.error("listar_vehiculos: %s", exc)
@@ -127,16 +146,29 @@ def listar_resenas(vehiculo_id: int):
         resenas = (
             Resena.query
             .filter_by(vehiculo_id=vehiculo_id)
+            .options(joinedload(Resena.usuario), selectinload(Resena.likes))
             .order_by(Resena.creado_en.desc())
             .all()
         )
         usuario_id = current_user.id if current_user.is_authenticated else None
+
+        # Una sola query para saber qué reseñas le gustaron al usuario
+        if usuario_id and resenas:
+            liked_ids = {
+                lk.resena_id for lk in ResenaLike.query.filter(
+                    ResenaLike.resena_id.in_([r.id for r in resenas]),
+                    ResenaLike.usuario_id == usuario_id,
+                ).all()
+            }
+        else:
+            liked_ids = set()
+
         items = []
         for r in resenas:
             item = r.to_dict()
             item["calificacion"]   = r.estrellas
             item["usuario_nombre"] = r.usuario.nombre if r.usuario else "Usuario"
-            item["liked_by_me"]    = any(lk.usuario_id == usuario_id for lk in r.likes) if usuario_id else False
+            item["liked_by_me"]    = r.id in liked_ids
             items.append(item)
         return jsonify(items)
     except Exception as exc:
@@ -202,8 +234,8 @@ def toggle_like_resena(vehiculo_id: int, resena_id: int):
             liked = True
 
         db.session.commit()
-        db.session.refresh(resena)
-        return jsonify({"liked": liked, "likes_count": len(resena.likes)})
+        likes_count = ResenaLike.query.filter_by(resena_id=resena_id).count()
+        return jsonify({"liked": liked, "likes_count": likes_count})
     except Exception as exc:
         db.session.rollback()
         log.error("toggle_like_resena %d: %s", resena_id, exc)

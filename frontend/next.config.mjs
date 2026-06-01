@@ -20,7 +20,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'https://humberto-dealer.onrender.com/api/:path*',
+        destination: `${process.env.BACKEND_URL || 'http://localhost:5001/api'}/:path*`,
       },
       {
         source: '/favicon.ico',

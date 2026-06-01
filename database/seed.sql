@@ -87,7 +87,7 @@ INSERT INTO tipos_cita (nombre) VALUES
 INSERT INTO reservas (vehiculo_id, cliente_id, estado, notas) VALUES
     (6, 1, 'CONFIRMADA', 'Cliente interesado en financiamiento');
 
-Venta de prueba
+-- Venta de prueba
 INSERT INTO ventas (vehiculo_id, cliente_id, empleado_id, precio_final, ubicacion_lat, ubicacion_lng, ubicacion_desc) VALUES
     (3, 2, 1, 95000.00, 18.4861, -69.9312, 'Sucursal Piantini, Santo Domingo');
 

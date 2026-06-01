@@ -113,7 +113,8 @@ def me():
 # ---------------------------------------------------------------
 @bp.get("/google")
 def google_login():
-    redirect_uri = url_for("auth.google_callback", _external=True)
+    frontend = current_app.config.get("FRONTEND_URL", "http://localhost:3000")
+    redirect_uri = f"{frontend}/api/auth/google/callback"
     return oauth.google.authorize_redirect(redirect_uri)
 
 
@@ -150,5 +151,7 @@ def google_callback():
         dest = "/admin" if usuario.is_admin else "/"
         return redirect(f"{frontend}{dest}")
     except Exception as exc:
-        log.error("google_callback: %s", exc)
-        return jsonify({"error": "Error en autenticación Google"}), 500
+        log.error("google_callback: %s", exc, exc_info=True)
+        debug = current_app.config.get("DEBUG") or current_app.config.get("FLASK_DEBUG")
+        msg = str(exc) if debug else "Error en autenticación Google"
+        return jsonify({"error": msg}), 500

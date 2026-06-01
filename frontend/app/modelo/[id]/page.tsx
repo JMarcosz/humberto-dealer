@@ -247,7 +247,7 @@ export default function ModeloPage() {
 
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MapPin className="h-4 w-4 text-orange-500 shrink-0" />
-                  Prol. Av. 27 de Febrero 467, Santo Domingo
+                  {process.env.NEXT_PUBLIC_BUSINESS_ADDRESS}
                 </div>
 
                 <div className="space-y-2 pt-1">
