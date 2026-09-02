@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { Hero } from '@/components/hero'
+import { RentalSearchWidget } from '@/components/rental-search-widget'
 import { VehicleCatalog } from '@/components/vehicle-catalog'
 import { BrandNav } from '@/components/brand-nav'
 import { SocialSection } from '@/components/social-section'
@@ -17,10 +18,15 @@ export default function Home() {
         {/* 1. Hero futurista */}
         <Hero />
 
-        {/* 2. Marcas — continúa el fondo oscuro del hero */}
+        {/* 2. Sección Renta de Autos (Buscador estilo Kayak / Rentcars) */}
+        <section id="renta-section" className="relative -mt-16 md:-mt-24 z-20 container mx-auto px-4 mb-12">
+          <RentalSearchWidget />
+        </section>
+
+        {/* 3. Marcas — continúa el fondo oscuro del hero */}
         <BrandNav />
 
-        {/* 3. Gradiente de transición suave: oscuro → claro */}
+        {/* 4. Gradiente de transición suave: oscuro → claro */}
         <div className="h-20 w-full" style={{
           background: 'linear-gradient(to bottom, #080c14 0%, hsl(var(--background)) 100%)'
         }} />

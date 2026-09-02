@@ -7,6 +7,7 @@ from sqlalchemy.orm import joinedload
 
 from ..models import db, Vehiculo, Reserva, Cliente, Modelo, Marca
 from ..decorators import login_required_api
+from ..services.renta_calendario import tiene_rentas_futuras
 
 bp  = Blueprint("reservas", __name__)
 log = logging.getLogger(__name__)
@@ -37,6 +38,25 @@ def crear_reserva():
 
         if vehiculo.estado != "DISPONIBLE":
             return jsonify({"error": "Vehículo no disponible para reserva"}), 422
+
+        # Una venta es un evento terminal: el auto sale de la flota. Por eso
+        # mira TODO el futuro del calendario de renta, no solo una ventana.
+        if vehiculo.disponible_para not in ("VENTA", "AMBOS"):
+            return jsonify({
+                "error": "Este vehículo está dedicado exclusivamente a renta.",
+                "codigo": "VEHICULO_NO_VENDIBLE",
+            }), 422
+
+        renta_futura = tiene_rentas_futuras(vehiculo.id)
+        if renta_futura:
+            return jsonify({
+                "error": (
+                    f"No se puede reservar para venta: el vehículo tiene la renta "
+                    f"{renta_futura.pnr} vigente hasta "
+                    f"{renta_futura.fecha_fin.strftime('%d/%m/%Y')}."
+                ),
+                "codigo": "TIENE_RENTAS_FUTURAS",
+            }), 409
 
         cliente = Cliente.query.filter_by(usuario_id=current_user.id).first()
         if not cliente:

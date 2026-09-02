@@ -1,4 +1,3 @@
-// Cliente API para conectar con Flask backend
 import type {
   VehiculoAPI as Vehiculo,
   Marca,
@@ -9,12 +8,44 @@ import type {
   Resena,
   PaginatedResponse,
   VehiculoFilters,
+  Sucursal,
+  CoberturaSeguro,
+  ExtraServicio,
+  DisponibilidadRentaResponse,
+  ReservaRenta,
+  ReservaRentaPayload,
+  PoliticaRenta,
+  CotizacionRenta,
+  FactorVoucher,
 } from './types'
 
 // Servidor usa URL absoluta directa al backend; cliente usa proxy Next.js (para cookies same-origin)
 const API_BASE_URL = typeof window === 'undefined'
   ? (process.env.BACKEND_URL || 'https://humberto-dealer.onrender.com/api')
   : (process.env.NEXT_PUBLIC_API_URL || '/api')
+
+/**
+ * Error de API con el status y el codigo de negocio del backend.
+ *
+ * Antes se lanzaba `new Error("422: mensaje")` y esa cadena se pintaba cruda al
+ * usuario. Sin `status` ni `codigo` accesibles la UI no podia distinguir un 409
+ * (revalidar y volver a buscar) de un 429 (esperar) de un 422 (corregir el
+ * formulario).
+ */
+export class ApiError extends Error {
+  status: number
+  codigo?: string
+  detalles?: Record<string, unknown>
+
+  constructor(mensaje: string, status: number, codigo?: string,
+              detalles?: Record<string, unknown>) {
+    super(mensaje)
+    this.name = 'ApiError'
+    this.status = status
+    this.codigo = codigo
+    this.detalles = detalles
+  }
+}
 
 class ApiClient {
   private baseUrl: string
@@ -38,8 +69,13 @@ class ApiClient {
     })
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Error de red' }))
-      throw new Error(`${response.status}: ${error.error || 'Error de red'}`)
+      const cuerpo = await response.json().catch(() => ({ error: 'Error de red' }))
+      throw new ApiError(
+        cuerpo.error || 'Error de red',
+        response.status,
+        cuerpo.codigo,
+        cuerpo.detalles,
+      )
     }
 
     return response.json()
@@ -245,8 +281,13 @@ class ApiClient {
     })
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Error de red' }))
-      throw new Error(`${response.status}: ${error.error || 'Error de red'}`)
+      const cuerpo = await response.json().catch(() => ({ error: 'Error de red' }))
+      throw new ApiError(
+        cuerpo.error || 'Error de red',
+        response.status,
+        cuerpo.codigo,
+        cuerpo.detalles,
+      )
     }
 
     return response.json()
@@ -301,8 +342,13 @@ class ApiClient {
       credentials: 'include',
     })
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Error de red' }))
-      throw new Error(`${response.status}: ${error.error || 'Error de red'}`)
+      const cuerpo = await response.json().catch(() => ({ error: 'Error de red' }))
+      throw new ApiError(
+        cuerpo.error || 'Error de red',
+        response.status,
+        cuerpo.codigo,
+        cuerpo.detalles,
+      )
     }
     return response.json()
   }
@@ -340,6 +386,192 @@ class ApiClient {
 
   async eliminarResena(resenaId: number): Promise<void> {
     return this.request(`/catalogo/resenas/${resenaId}`, { method: 'DELETE' })
+  }
+
+  // ==================== RENTA DE AUTOS ====================
+
+  /**
+   * Constantes de politica publicadas por el backend.
+   *
+   * La UI las usa para constrenir sus inputs (min/max de los selectores de
+   * fecha) en lugar de codificar umbrales propios: las reglas viven en el
+   * servidor y aqui solo se consumen.
+   */
+  async getPolitica(): Promise<PoliticaRenta> {
+    return this.request<PoliticaRenta>('/renta/politica')
+  }
+
+  /**
+   * Desglose completo sin persistir nada.
+   *
+   * Por dentro llama exactamente al mismo calculo que el checkout, de modo que
+   * la cifra mostrada y la cobrada no pueden divergir.
+   */
+  async cotizarRenta(payload: ReservaRentaPayload): Promise<CotizacionRenta> {
+    return this.request<CotizacionRenta>('/renta/cotizar', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  }
+
+  async getSucursales(): Promise<Sucursal[]> {
+    return this.request<Sucursal[]>('/renta/sucursales')
+  }
+
+  async getCoberturas(): Promise<CoberturaSeguro[]> {
+    return this.request<CoberturaSeguro[]>('/renta/coberturas')
+  }
+
+  async getExtras(): Promise<ExtraServicio[]> {
+    return this.request<ExtraServicio[]>('/renta/extras')
+  }
+
+  async getDisponibilidadRenta(params: {
+    fecha_inicio: string
+    fecha_fin: string
+    sucursal_recogida_id?: number
+    sucursal_devolucion_id?: number
+    categoria?: string
+    transmision?: string
+    pasajeros?: number
+  }): Promise<DisponibilidadRentaResponse> {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        query.append(key, String(value))
+      }
+    })
+    return this.request<DisponibilidadRentaResponse>(
+      `/renta/disponibilidad?${query.toString()}`
+    )
+  }
+
+  async crearReservaRenta(payload: ReservaRentaPayload): Promise<{
+    mensaje: string
+    pnr: string
+    reserva: ReservaRenta
+  }> {
+    return this.request('/renta/reservas', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  }
+
+  /**
+   * Voucher publico. Exige segundo factor: apellido del conductor o los
+   * ultimos 4 digitos de su documento.
+   */
+  async getReservaPorPnr(pnr: string, factor: FactorVoucher): Promise<ReservaRenta> {
+    const query = new URLSearchParams()
+    if (factor.apellido) query.append('apellido', factor.apellido)
+    if (factor.doc4) query.append('doc4', factor.doc4)
+    return this.request<ReservaRenta>(
+      `/renta/reservas/${encodeURIComponent(pnr.trim().toUpperCase())}?${query.toString()}`
+    )
+  }
+
+  async cancelarReservaRenta(pnr: string, factor: FactorVoucher & { motivo?: string }): Promise<{
+    mensaje: string
+    reserva: ReservaRenta
+  }> {
+    return this.request(
+      `/renta/reservas/${encodeURIComponent(pnr.trim().toUpperCase())}/cancelar`,
+      { method: 'POST', body: JSON.stringify(factor) }
+    )
+  }
+
+  // ==================== ADMIN: RENTA ====================
+
+  async getAdminReservasRenta(params: {
+    page?: number
+    per_page?: number
+    estado?: string
+    buscar?: string
+  } = {}): Promise<PaginatedResponse<ReservaRenta>> {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        query.append(key, String(value))
+      }
+    })
+    return this.request<PaginatedResponse<ReservaRenta>>(
+      `/admin/renta/reservas?${query.toString()}`
+    )
+  }
+
+  /** Cancela o marca no-show desde mostrador. El estado CANCELADA no tenía
+   *  ningún productor: toda reserva bloqueaba el calendario para siempre. */
+  async cancelarReservaRentaAdmin(data: {
+    pnr?: string
+    reserva_id?: number
+    motivo: string
+    estado?: 'CANCELADA' | 'NO_SHOW'
+  }): Promise<{ mensaje: string; reserva: ReservaRenta }> {
+    return this.request('/admin/renta/cancelar', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async checkInRenta(data: {
+    reserva_id?: number
+    pnr?: string
+    odometro: number
+    combustible?: string
+    observaciones_danos?: string
+    fotos_urls?: string
+  }): Promise<{ mensaje: string; reserva: ReservaRenta }> {
+    return this.request('/admin/renta/check-in', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async checkOutRenta(data: {
+    reserva_id?: number
+    pnr?: string
+    odometro: number
+    combustible?: string
+    observaciones_danos?: string
+    fotos_urls?: string
+    /** Cargo manual por daños; el retraso y el combustible los calcula el backend. */
+    cargo_danos?: number
+  }): Promise<{
+    mensaje: string
+    reserva: ReservaRenta
+    liquidacion: {
+      horas_retraso: number
+      cargo_retraso: number
+      octavos_faltantes: number
+      cargo_combustible: number
+      cargo_danos: number
+      total_penalidades: number
+      total_final: number
+      deposito_a_retener: number
+      deposito_a_liberar: number
+    }
+  }> {
+    return this.request('/admin/renta/check-out', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async guardarTarifaRenta(data: {
+    vehiculo_id: number
+    precio_dia_base: number
+    deposito_garantia?: number
+    moneda?: string
+    kilometraje_incluido?: string
+    disponible_para?: string
+    pasajeros?: number
+    maletas_grandes?: number
+    maletas_pequenas?: number
+  }): Promise<{ mensaje: string; tarifa: unknown }> {
+    return this.request('/admin/renta/tarifas', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
   }
 }
 

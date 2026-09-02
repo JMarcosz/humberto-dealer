@@ -1,4 +1,14 @@
 """Tests automatizados de endpoints y reglas de negocio de Renta de Autos."""
+import os
+os.environ.setdefault("SECRET_KEY",              "test-secret-key")
+os.environ.setdefault("DB_USER",                 "root")
+os.environ.setdefault("DB_PASSWORD",             "test")
+os.environ.setdefault("WHATSAPP_API_KEY",         "dummy")
+os.environ.setdefault("WHATSAPP_PHONE_NUMBER_ID", "dummy")
+os.environ.setdefault("WHATSAPP_VERIFY_TOKEN",    "test-token")
+os.environ.setdefault("GOOGLE_CLIENT_ID",         "dummy")
+os.environ.setdefault("GOOGLE_CLIENT_SECRET",     "dummy")
+
 import json
 from datetime import datetime, timedelta, date
 import pytest
@@ -13,20 +23,10 @@ from backend.models import (
 
 @pytest.fixture(scope="session")
 def app():
-    import os
-    os.environ.setdefault("SECRET_KEY", "test-secret-key")
-    os.environ.setdefault("DB_USER", "root")
-    os.environ.setdefault("DB_PASSWORD", "test")
-    os.environ.setdefault("WHATSAPP_API_KEY", "dummy")
-    os.environ.setdefault("WHATSAPP_PHONE_NUMBER_ID", "dummy")
-    os.environ.setdefault("WHATSAPP_VERIFY_TOKEN", "test-token")
-    os.environ.setdefault("GOOGLE_CLIENT_ID", "dummy")
-    os.environ.setdefault("GOOGLE_CLIENT_SECRET", "dummy")
-
-    application = create_app()
-    application.config.update({
+    application = create_app({
         "TESTING": True,
         "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+        "SQLALCHEMY_ENGINE_OPTIONS": {},
         "WTF_CSRF_ENABLED": False,
     })
     return application
@@ -43,8 +43,8 @@ def setup_renta_db(app):
         _db.create_all()
 
         # Roles
-        rol_admin = Rol(nombre="ADMIN")
-        rol_pub   = Rol(nombre="USUARIO_PUBLICO")
+        rol_admin = Rol(id=1, nombre="ADMIN")
+        rol_pub   = Rol(id=2, nombre="USUARIO_PUBLICO")
         _db.session.add_all([rol_admin, rol_pub])
         _db.session.flush()
 
@@ -201,6 +201,7 @@ def test_checkout_rechazo_menor_21_anos(client):
         "fecha_inicio": f_ini,
         "fecha_fin": f_fin,
         "cobertura_id": 1,
+        "acepta_terminos": True,
         "conductor": {
             "nombre": "Joven",
             "apellido": "Tester",
@@ -231,6 +232,7 @@ def test_checkout_exitoso_y_voucher(client):
         "fecha_fin": f_fin,
         "cobertura_id": 2,  # CDW (15/dia)
         "extras_ids": [1],  # Silla bebe (8/dia)
+        "acepta_terminos": True,
         "conductor": {
             "nombre": "Carlos",
             "apellido": "Adulto",
@@ -253,15 +255,83 @@ def test_checkout_exitoso_y_voucher(client):
     assert reserva["total_dias"] == 3
     assert reserva["total_alquiler"] == 189.0
 
-    # Consultar voucher
-    res_voucher = client.get(f"/api/renta/reservas/{pnr}")
+    # El voucher exige segundo factor: sin el, 403 y no 200.
+    assert client.get(f"/api/renta/reservas/{pnr}").status_code == 403
+
+    # Consultar voucher con el apellido del conductor
+    res_voucher = client.get(f"/api/renta/reservas/{pnr}?apellido=Adulto")
     assert res_voucher.status_code == 200
     v_data = res_voucher.get_json()
     assert v_data["pnr"] == pnr
-    assert v_data["conductor"]["nombre"] == "Carlos"
+    # nombre/apellido se persisten en MAYUSCULAS (validators.CAMPOS_MAYUSCULAS)
+    assert v_data["conductor"]["nombre"] == "CARLOS"
     assert v_data["estado"] == "CONFIRMADA"
+    # La respuesta publica no expone el documento ni la fecha de nacimiento
+    assert v_data["conductor"]["documento"].endswith("0002")
+    assert v_data["conductor"]["documento"].startswith("*")
+    assert "fecha_nacimiento" not in v_data["conductor"]
 
     # Verificar que el mismo vehículo no está disponible para esas fechas
     res_disp = client.get(f"/api/renta/disponibilidad?fecha_inicio={f_ini}&fecha_fin={f_fin}")
     assert res_disp.status_code == 200
     assert res_disp.get_json()["total_disponibles"] == 0
+
+
+def test_admin_check_in_y_check_out(client):
+    # 0. Reserva que empieza dentro de la ventana de check-in (3 h): no se puede
+    #    entregar un auto reservado para dentro de tres semanas.
+    f_ini = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")
+    f_fin = (datetime.utcnow() + timedelta(hours=27)).strftime("%Y-%m-%dT%H:%M")
+    crear = client.post("/api/renta/reservas", json={
+        "vehiculo_id": 1,
+        "sucursal_recogida_id": 1,
+        "sucursal_devolucion_id": 1,
+        "fecha_inicio": f_ini,
+        "fecha_fin": f_fin,
+        "cobertura_id": 1,
+        "acepta_terminos": True,
+        "conductor": {
+            "nombre": "Operativo", "apellido": "Mostrador",
+            "email": "operativo@test.com", "telefono": "8095550000",
+            "documento": "00100000003", "licencia": "DO-55555",
+            "fecha_nacimiento": (date.today() - timedelta(days=365 * 35)).isoformat(),
+        },
+    })
+    assert crear.status_code == 201, crear.get_json()
+    pnr = crear.get_json()["pnr"]
+
+    # 1. Login como admin
+    login_res = client.post("/api/auth/login", json={
+        "email": "admin@test.com",
+        "password": "admin1234"
+    })
+    assert login_res.status_code == 200
+
+    # 2. Listar reservas admin
+    res_list = client.get("/api/admin/renta/reservas")
+    assert res_list.status_code == 200
+    assert len(res_list.get_json()["items"]) >= 1
+
+    # 3. Check-in (Entrega del auto)
+    checkin_res = client.post("/api/admin/renta/check-in", json={
+        "pnr": pnr,
+        "odometro": 15200,
+        "combustible": "8/8",
+        "observaciones_danos": "Sin daños nuevos. Tanque lleno.",
+        "fotos_urls": "/uploads/front.jpg,/uploads/dash.jpg"
+    })
+    assert checkin_res.status_code == 200
+    reserva_updated = checkin_res.get_json()["reserva"]
+    assert reserva_updated["estado"] == "EN_CURSO"
+
+    # 4. Check-out (Devolución del auto)
+    checkout_res = client.post("/api/admin/renta/check-out", json={
+        "pnr": pnr,
+        "odometro": 15650,
+        "combustible": "8/8",
+        "observaciones_danos": "Auto recibido limpio en perfecto estado.",
+    })
+    assert checkout_res.status_code == 200
+    reserva_final = checkout_res.get_json()["reserva"]
+    assert reserva_final["estado"] == "COMPLETADA"
+

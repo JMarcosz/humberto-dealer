@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { AlertCircle, MessageSquare, LogIn, Loader2, Heart, MoreVertical, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
-import type { Resena } from '@/lib/types'
+import type { Resena, Usuario } from '@/lib/types'
 import { formatDate } from '@/lib/format'
 import { useCurrentUser } from '@/lib/queries'
 

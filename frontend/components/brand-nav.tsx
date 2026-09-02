@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMarcas } from '@/lib/queries'
+import type { Marca } from '@/lib/types'
 import { triggerTransition } from '@/components/transition-overlay'
 
 // ── Configuración por marca ───────────────────────────────────────────────────

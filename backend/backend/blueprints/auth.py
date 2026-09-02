@@ -2,7 +2,12 @@
 import logging
 from flask import Blueprint, jsonify, request, current_app, redirect, url_for
 from flask_login import login_user, logout_user, current_user
-from authlib.integrations.flask_client import OAuth
+try:
+    from authlib.integrations.flask_client import OAuth
+    oauth = OAuth()
+except (ImportError, Exception):
+    OAuth = None
+    oauth = None
 
 from ..models import db, Usuario, Rol
 from ..validators import validar_email
@@ -10,10 +15,17 @@ from backend import bcrypt, limiter
 
 bp  = Blueprint("auth", __name__)
 log = logging.getLogger(__name__)
-oauth = OAuth()
 
 
 def init_oauth(app):
+    global oauth
+    if oauth is None:
+        try:
+            from authlib.integrations.flask_client import OAuth as OAuthClass
+            oauth = OAuthClass()
+        except Exception as err:
+            log.warning("Google OAuth no disponible: %s", err)
+            return
     oauth.init_app(app)
     oauth.register(
         name="google",

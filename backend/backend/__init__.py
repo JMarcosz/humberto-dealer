@@ -28,9 +28,11 @@ def unauthorized():
     return jsonify({"error": "No autenticado"}), 401
 
 
-def create_app() -> Flask:
+def create_app(config_override: dict = None) -> Flask:
     app = Flask(__name__, instance_relative_config=False)
     app.config.from_object(get_config())
+    if config_override:
+        app.config.update(config_override)
 
     # Middleware para resolución correcta de IP del cliente detrás del reverse proxy Next.js
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
@@ -80,8 +82,9 @@ def create_app() -> Flask:
     app.register_blueprint(wa_bp, url_prefix="/api/whatsapp")
 
     # Hilo de seguimiento automático a las 24 h (Automatización 13)
-    from .services.whatsapp import start_followup_thread
-    start_followup_thread(app)
+    if not app.config.get("TESTING"):
+        from .services.whatsapp import start_followup_thread
+        start_followup_thread(app)
 
     # Protección CSRF por verificación de Origin en métodos mutables
     @app.before_request
