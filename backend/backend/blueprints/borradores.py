@@ -17,6 +17,8 @@ _progreso: dict = {"total": 0, "procesado": 0, "errores": [], "terminado": True}
 _lock = threading.Lock()
 
 
+import uuid
+
 # ---------------------------------------------------------------
 # POST /api/borradores/importar
 # Multipart: file = archivo .xlsx
@@ -29,9 +31,10 @@ def importar_excel():
     if not archivo or not archivo.filename.endswith(".xlsx"):
         return jsonify({"error": "Se requiere un archivo .xlsx"}), 400
 
-    upload_dir = current_app.config["UPLOAD_FOLDER"]
+    upload_dir = os.path.join(current_app.config["UPLOAD_FOLDER"], "imports")
     os.makedirs(upload_dir, exist_ok=True)
-    ruta = os.path.join(upload_dir, "importacion_temp.xlsx")
+    nombre_temp = f"import_{uuid.uuid4().hex}.xlsx"
+    ruta = os.path.join(upload_dir, nombre_temp)
     archivo.save(ruta)
 
     with _lock:
@@ -129,6 +132,11 @@ def _procesar_importacion(ruta: str, app):
         finally:
             with _lock:
                 _progreso["terminado"] = True
+            if os.path.exists(ruta):
+                try:
+                    os.remove(ruta)
+                except Exception as clean_err:
+                    log.warning("No se pudo eliminar archivo temporal %s: %s", ruta, clean_err)
             log.info("Importación Excel completada. Errores: %d", len(_progreso["errores"]))
 
 

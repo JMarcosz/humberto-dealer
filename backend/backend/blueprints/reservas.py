@@ -25,7 +25,16 @@ def crear_reserva():
         if not vid:
             return jsonify({"error": "vehiculo_id es obligatorio"}), 400
 
-        vehiculo = db.get_or_404(Vehiculo, int(vid))
+        # Bloqueo pesimista para evitar condición de carrera (TOCTOU)
+        vehiculo = (
+            Vehiculo.query
+            .filter_by(id=int(vid))
+            .with_for_update()
+            .first()
+        )
+        if not vehiculo:
+            return jsonify({"error": "Vehículo no encontrado"}), 404
+
         if vehiculo.estado != "DISPONIBLE":
             return jsonify({"error": "Vehículo no disponible para reserva"}), 422
 

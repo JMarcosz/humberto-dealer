@@ -17,6 +17,18 @@ ALLOWED_EXT = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
 def _ext_valida(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXT
 
+def _validar_magic_bytes(header: bytes) -> bool:
+    """Valida los bytes de cabecera (Magic Numbers) de formatos de imagen permitidos."""
+    if header.startswith(b'\xff\xd8\xff'):
+        return True  # JPEG
+    if header.startswith(b'\x89PNG\r\n\x1a\n'):
+        return True  # PNG
+    if header.startswith(b'GIF87a') or header.startswith(b'GIF89a'):
+        return True  # GIF
+    if header.startswith(b'RIFF') and len(header) >= 12 and header[8:12] == b'WEBP':
+        return True  # WEBP
+    return False
+
 bp  = Blueprint("admin", __name__)
 log = logging.getLogger(__name__)
 
@@ -347,6 +359,11 @@ def agregar_imagen(vid: int):
             archivo = request.files['file']
             if not archivo or not _ext_valida(archivo.filename):
                 return jsonify({"error": "Formato no válido. Use jpg, png, webp o gif"}), 400
+
+            header = archivo.read(16)
+            archivo.seek(0)
+            if not _validar_magic_bytes(header):
+                return jsonify({"error": "El contenido del archivo no corresponde a una imagen válida"}), 400
 
             ext      = archivo.filename.rsplit('.', 1)[1].lower()
             nombre   = f"{uuid.uuid4().hex}.{ext}"

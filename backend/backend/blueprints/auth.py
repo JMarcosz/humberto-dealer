@@ -124,6 +124,10 @@ def google_callback():
         token    = oauth.google.authorize_access_token()
         userinfo = token.get("userinfo") or oauth.google.userinfo()
 
+        if not userinfo.get("email_verified", False):
+            log.warning("Google OAuth: email no verificado: %s", userinfo.get("email"))
+            return jsonify({"error": "El email de Google no está verificado"}), 400
+
         google_id = userinfo["sub"]
         email     = userinfo.get("email", "").lower()
         nombre    = userinfo.get("name", email)

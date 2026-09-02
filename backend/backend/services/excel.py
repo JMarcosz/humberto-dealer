@@ -295,13 +295,28 @@ class ExcelService:
             cell.font   = header_font
             cell.alignment = Alignment(horizontal="center")
 
+        def _sanitizar(valor: Any) -> Any:
+            """Neutraliza inyección de fórmulas en Excel (CWE-1236)."""
+            if isinstance(valor, str) and valor.startswith(('=', '+', '-', '@', '\t', '\r')):
+                return f"'{valor}"
+            return valor
+
         for row_num, v in enumerate(vehiculos, start=2):
-            marca  = v.modelo.marca.nombre if v.modelo and v.modelo.marca else ""
-            modelo = v.modelo.nombre if v.modelo else ""
+            marca  = _sanitizar(v.modelo.marca.nombre if v.modelo and v.modelo.marca else "")
+            modelo = _sanitizar(v.modelo.nombre if v.modelo else "")
             ws.append([
-                v.id, marca, modelo, v.anio, v.vin, v.color,
-                float(v.precio), v.kilometraje, v.combustible, v.transmision,
-                v.estado, v.publicado_en.strftime("%Y-%m-%d %H:%M") if v.publicado_en else "",
+                v.id,
+                marca,
+                modelo,
+                v.anio,
+                _sanitizar(v.vin),
+                _sanitizar(v.color),
+                float(v.precio),
+                v.kilometraje,
+                _sanitizar(v.combustible),
+                _sanitizar(v.transmision),
+                _sanitizar(v.estado),
+                v.publicado_en.strftime("%Y-%m-%d %H:%M") if v.publicado_en else "",
             ])
 
         for col in range(1, len(headers) + 1):
