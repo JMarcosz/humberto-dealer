@@ -55,6 +55,42 @@ function New-CryptoPassword([int]$length = 24) {
     return -join $chars
 }
 
+function Invoke-DatabaseSeed {
+    Write-Host "[*] Verificando e importando datos seed en MySQL..." -ForegroundColor Yellow
+    $rootPass = "dealer_root_password_456"
+    $envFile = Join-Path $ProjectRoot ".env"
+    if (Test-Path $envFile) {
+        $envText = Get-Content $envFile -Raw
+        if ($envText -match 'MYSQL_ROOT_PASSWORD=([^\r\n]+)') {
+            $rootPass = $matches[1].Trim()
+        }
+    }
+
+    Write-Host "  -> Verificando tablas en base de datos..." -ForegroundColor DarkGray
+    $null = docker compose exec -T db mysql -u root -p"$rootPass" concesionaria -e "SELECT 1 FROM vehiculos LIMIT 1;" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  -> Creando tablas desde database/schema.sql..." -ForegroundColor DarkGray
+        Get-Content (Join-Path $ProjectRoot "database\schema.sql") -Raw | docker compose exec -T db mysql -u root -p"$rootPass" concesionaria
+    }
+
+    $count = docker compose exec -T db mysql -u root -p"$rootPass" concesionaria -N -s -e "SELECT count(*) FROM vehiculos;" 2>$null
+    if ([string]::IsNullOrWhiteSpace($count) -or $count.Trim() -eq "0") {
+        Write-Host "  -> Cargando catalogo y usuarios (database/seed.sql)..." -ForegroundColor DarkGray
+        Get-Content (Join-Path $ProjectRoot "database\seed.sql") -Raw | docker compose exec -T db mysql -u root -p"$rootPass" concesionaria
+        Write-Host "[OK] Catalogo y datos iniciales cargados en MySQL." -ForegroundColor Green
+    } else {
+        Write-Host "[OK] La base de datos ya contiene $count vehiculos registrados." -ForegroundColor Green
+    }
+
+    Write-Host "  -> Sincronizando usuarios con bcrypt..." -ForegroundColor DarkGray
+    try {
+        docker compose exec backend python seed.py
+        Write-Host "[OK] Seeders sincronizados al 100%." -ForegroundColor Green
+    } catch {
+        Write-Host "[WARN] No se pudo ejecutar seed.py en backend" -ForegroundColor Yellow
+    }
+}
+
 # -----------------------------------------------------------------------------
 # Manejo de flags especiales (-Down, -Logs, -Seed, -Status)
 # -----------------------------------------------------------------------------
@@ -72,6 +108,11 @@ if ($Logs) {
 
 if ($Status) {
     docker compose ps
+    exit 0
+}
+
+if ($Seed) {
+    Invoke-DatabaseSeed
     exit 0
 }
 
@@ -192,14 +233,9 @@ if ($healthy) {
     Write-Host "[WARN] MySQL tardo en reportar estado saludable. Continuando con el seed..." -ForegroundColor Yellow
 }
 
-# Sincronizar seed y contrasenas hasheadas con bcrypt dentro del contenedor backend
-Write-Host "[5/5] Sincronizando datos y contrasenas de usuario con bcrypt..." -ForegroundColor Yellow
-try {
-    docker compose exec backend python seed.py
-    Write-Host "[OK] Base de datos y credenciales hasheadas listas." -ForegroundColor Green
-} catch {
-    Write-Host "[WARN] No se pudo ejecutar seed.py en caliente; puedes ejecutarlo con: .\deploy.ps1 -Seed" -ForegroundColor DarkGray
-}
+# Sincronizar catalogo y usuarios con bcrypt dentro de la base de datos
+Write-Host "[5/5] Sincronizando catalogo y usuarios en base de datos..." -ForegroundColor Yellow
+Invoke-DatabaseSeed
 
 # -----------------------------------------------------------------------------
 # Resumen Final y Enlaces
