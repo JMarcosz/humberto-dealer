@@ -63,12 +63,13 @@ INSERT INTO vehiculo_imagenes (vehiculo_id, url, es_principal, orden) VALUES
     (6, 'https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=1200&q=80', 1, 0);
 
 -- Usuarios
--- Contraseñas en texto plano SOLO para seed/docs. En app se hashean con bcrypt.
--- admin123  →  se hashea al crear; aquí placeholder
+-- Contraseñas hasheadas con bcrypt listas para login:
+-- admin123  →  admin@concesionaria.com
+-- user1234  →  maria@email.com, carlos@email.com
 INSERT INTO usuarios (nombre, email, password_hash, rol_id) VALUES
-    ('Rafael Admin',   'admin@concesionaria.com',  '$2b$12$PLACEHOLDER_ADMIN_HASH',  1),
-    ('María González', 'maria@email.com',           '$2b$12$PLACEHOLDER_USER_HASH',   2),
-    ('Carlos Pérez',   'carlos@email.com',          '$2b$12$PLACEHOLDER_USER_HASH2',  2);
+    ('Rafael Admin',   'admin@concesionaria.com',  '$2b$12$jy5IxcMH/U8xwBCfKJGa2OVU3iHmIEryUYY1TcuKM.Q0xS9kr4YG2',  1),
+    ('María González', 'maria@email.com',           '$2b$12$EVugtg3m2eO1IiR/Pr/rEeG7XH5yfsME9y8tW//EkRstElejTcMDW',   2),
+    ('Carlos Pérez',   'carlos@email.com',          '$2b$12$EVugtg3m2eO1IiR/Pr/rEeG7XH5yfsME9y8tW//EkRstElejTcMDW',  2);
 
 -- Clientes
 INSERT INTO clientes (usuario_id, nombre, apellido, cedula, telefono, email, calle_id) VALUES

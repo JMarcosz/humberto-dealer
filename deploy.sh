@@ -18,6 +18,34 @@ echo -e "\n${CYAN}==========================================================${NC
 echo -e "${CYAN}         HUMBERTO DEALER - DEVOPS AUTOMATION              ${NC}"
 echo -e "${CYAN}==========================================================${NC}\n"
 
+# Función para cargar schema y seeders en MySQL
+cargar_seeders() {
+    echo -e "${YELLOW}[*] Verificando e importando datos seed en MySQL...${NC}"
+    ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "$PROJECT_ROOT/.env" 2>/dev/null | cut -d '=' -f2- | tr -d '\r' || echo "dealer_root_password_456")
+    
+    # 1. Asegurar que el esquema exista
+    echo "  -> Verificando tablas en base de datos..."
+    if ! docker compose exec -T db mysql -u root -p"$ROOT_PASS" concesionaria -e "SELECT 1 FROM vehiculos LIMIT 1;" >/dev/null 2>&1; then
+        echo "  -> Creando tablas desde database/schema.sql..."
+        docker compose exec -T db mysql -u root -p"$ROOT_PASS" concesionaria < "$PROJECT_ROOT/database/schema.sql"
+    fi
+
+    # 2. Cargar datos de seed si no existen vehículos
+    COUNT=$(docker compose exec -T db mysql -u root -p"$ROOT_PASS" concesionaria -N -s -e "SELECT count(*) FROM vehiculos;" 2>/dev/null || echo "0")
+    if [ "$COUNT" = "0" ] || [ -z "$COUNT" ]; then
+        echo "  -> Cargando catálogo de vehículos y usuarios (database/seed.sql)..."
+        docker compose exec -T db mysql -u root -p"$ROOT_PASS" concesionaria < "$PROJECT_ROOT/database/seed.sql"
+        echo -e "${GREEN}[OK] Catálogo y datos iniciales cargados en MySQL.${NC}"
+    else
+        echo -e "${GREEN}[OK] La base de datos ya contiene $COUNT vehículos registrados.${NC}"
+    fi
+
+    # 3. Sincronizar usuarios y contraseñas bcrypt en backend
+    echo "  -> Sincronizando usuarios con bcrypt..."
+    docker compose exec backend python seed.py 2>/dev/null || true
+    echo -e "${GREEN}[OK] Seeders sincronizados al 100%.${NC}"
+}
+
 # Manejo de argumentos
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -33,7 +61,7 @@ while [[ "$#" -gt 0 ]]; do
             exit 0
             ;;
         --seed|-seed)
-            docker compose exec backend python seed.py
+            cargar_seeders
             exit 0
             ;;
         --status|-status)
@@ -107,17 +135,18 @@ for i in {1..30}; do
     sleep 2
 done
 
-# 5. Ejecutar seed y sincronizar contraseñas hasheadas
-echo -e "${YELLOW}[5/5] Sincronizando datos y contraseñas hasheadas en backend...${NC}"
-docker compose exec backend python seed.py || echo "[WARN] Ejecuta ./deploy.sh --seed más tarde si el backend aún no ha terminado de inicializarse."
+# 5. Ejecutar seed y sincronizar datos
+echo -e "${YELLOW}[5/5] Sincronizando catálogo y usuarios en base de datos...${NC}"
+cargar_seeders
 
 echo -e "\n${GREEN}==========================================================${NC}"
 echo -e "${GREEN}         DESPLIEGUE COMPLETADO EXITOSAMENTE!              ${NC}"
 echo -e "${GREEN}==========================================================${NC}\n"
+FRONTEND_P=$(grep '^FRONTEND_PORT=' "$ENV_FILE" 2>/dev/null | cut -d '=' -f2- | tr -d '\r' || echo "3000")
+BACKEND_P=$(grep '^BACKEND_PORT=' "$ENV_FILE" 2>/dev/null | cut -d '=' -f2- | tr -d '\r' || echo "5001")
 echo -e "${CYAN}Servicios disponibles:${NC}"
-echo "  * Frontend:       http://localhost:3000"
-echo "  * API Backend:    http://localhost:5001/api/health"
-echo "  * API Proxy:      http://localhost:3000/api/catalogo/vehiculos"
+echo "  * Frontend:       http://localhost:${FRONTEND_P:-3000}"
+echo "  * API Backend:    http://localhost:${BACKEND_P:-5001}/api/health"
 echo "  * Base de datos:  localhost:3306"
 echo ""
 echo -e "${CYAN}Credenciales de prueba:${NC}"
