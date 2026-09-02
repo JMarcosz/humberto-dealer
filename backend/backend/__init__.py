@@ -65,6 +65,7 @@ def create_app() -> Flask:
     from .blueprints.reservas   import bp as reservas_bp
     from .blueprints.borradores import bp as borradores_bp
     from .blueprints.location   import bp as location_bp
+    from .blueprints.renta      import bp as renta_bp
 
     app.register_blueprint(catalog_bp,    url_prefix="/api/catalogo")
     app.register_blueprint(auth_bp,       url_prefix="/api/auth")
@@ -72,6 +73,7 @@ def create_app() -> Flask:
     app.register_blueprint(reservas_bp,   url_prefix="/api/reservas")
     app.register_blueprint(borradores_bp, url_prefix="/api/borradores")
     app.register_blueprint(location_bp,   url_prefix="/api/location")
+    app.register_blueprint(renta_bp,      url_prefix="/api/renta")
 
     # WhatsApp webhook
     from .blueprints.whatsapp import bp as wa_bp

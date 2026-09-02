@@ -3,6 +3,10 @@ from .geo import Provincia, Municipio, Sector, Calle
 from .catalog import Marca, Modelo, Vehiculo, VehiculoImagen
 from .users import Rol, Usuario, Cliente, Empleado, Proveedor
 from .transactions import Reserva, TipoCita, Cita, Venta, Pago, Resena, ResenaLike
+from .renta import (
+    Sucursal, TarifaRenta, CoberturaSeguro, ExtraServicio,
+    ReservaRenta, ReservaRentaExtra, InspeccionRenta
+)
 
 __all__ = [
     "db",
@@ -10,4 +14,6 @@ __all__ = [
     "Marca", "Modelo", "Vehiculo", "VehiculoImagen",
     "Rol", "Usuario", "Cliente", "Empleado", "Proveedor",
     "Reserva", "TipoCita", "Cita", "Venta", "Pago", "Resena", "ResenaLike",
+    "Sucursal", "TarifaRenta", "CoberturaSeguro", "ExtraServicio",
+    "ReservaRenta", "ReservaRentaExtra", "InspeccionRenta",
 ]

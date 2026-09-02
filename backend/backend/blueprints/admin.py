@@ -8,7 +8,10 @@ from werkzeug.utils import secure_filename
 
 from sqlalchemy.orm import joinedload, selectinload
 
-from ..models import db, Vehiculo, Venta, Reserva, Cliente, Pago, VehiculoImagen, Marca, Modelo
+from ..models import (
+    db, Vehiculo, Venta, Reserva, Cliente, Pago, VehiculoImagen, Marca, Modelo,
+    ReservaRenta, TarifaRenta, InspeccionRenta
+)
 from ..decorators import admin_required
 from ..validators import forzar_mayusculas, validar_mayusculas
 

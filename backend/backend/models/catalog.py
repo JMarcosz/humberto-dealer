@@ -85,6 +85,15 @@ class Vehiculo(db.Model):
         nullable=False,
         default=EstadoVehiculo.BORRADOR.value,
     )
+    disponible_para  = db.Column(
+        db.Enum("VENTA", "RENTA", "AMBOS"),
+        nullable=False,
+        default="AMBOS",
+    )
+    pasajeros        = db.Column(db.SmallInteger, nullable=False, default=5)
+    maletas_grandes  = db.Column(db.SmallInteger, nullable=False, default=2)
+    maletas_pequenas = db.Column(db.SmallInteger, nullable=False, default=2)
+    tiene_aire_acondicionado = db.Column(db.Boolean, nullable=False, default=True)
     importado_excel  = db.Column(db.Boolean, nullable=False, default=False)
     publicado_en     = db.Column(db.DateTime)
     creado_en        = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -97,6 +106,8 @@ class Vehiculo(db.Model):
         "VehiculoImagen", back_populates="vehiculo", cascade="all, delete-orphan", lazy="select"
     )
     reservas = db.relationship("Reserva", back_populates="vehiculo", lazy="dynamic")
+    tarifa_renta = db.relationship("TarifaRenta", back_populates="vehiculo", uselist=False, cascade="all, delete-orphan")
+    reservas_renta = db.relationship("ReservaRenta", back_populates="vehiculo", lazy="dynamic")
 
     def to_dict(self, include_imagenes: bool = True) -> dict:
         data = {
@@ -111,8 +122,15 @@ class Vehiculo(db.Model):
             "transmision": self.transmision,
             "descripcion": self.descripcion,
             "estado": self.estado,
+            "disponible_para": self.disponible_para,
+            "pasajeros": self.pasajeros,
+            "maletas_grandes": self.maletas_grandes,
+            "maletas_pequenas": self.maletas_pequenas,
+            "tiene_aire_acondicionado": self.tiene_aire_acondicionado,
             "publicado_en": self.publicado_en.isoformat() if self.publicado_en else None,
         }
+        if self.tarifa_renta and self.tarifa_renta.activo:
+            data["tarifa_renta"] = self.tarifa_renta.to_dict()
         if include_imagenes:
             data["imagenes"] = [img.to_dict() for img in self.imagenes]
         return data
@@ -121,7 +139,7 @@ class Vehiculo(db.Model):
         """Versión ligera para listados — omite descripcion y campos pesados."""
         modelo = self.modelo
         marca  = modelo.marca if modelo else None
-        return {
+        data = {
             "id": self.id,
             "modelo": {
                 "id":       modelo.id      if modelo else None,
@@ -140,9 +158,17 @@ class Vehiculo(db.Model):
             "combustible": self.combustible,
             "transmision": self.transmision,
             "estado":      self.estado,
+            "disponible_para": self.disponible_para,
+            "pasajeros":   self.pasajeros,
+            "maletas_grandes": self.maletas_grandes,
+            "maletas_pequenas": self.maletas_pequenas,
+            "tiene_aire_acondicionado": self.tiene_aire_acondicionado,
             "publicado_en": self.publicado_en.isoformat() if self.publicado_en else None,
             "imagenes":    [img.to_dict() for img in self.imagenes],
         }
+        if self.tarifa_renta and self.tarifa_renta.activo:
+            data["tarifa_renta"] = self.tarifa_renta.to_dict()
+        return data
 
 
 class VehiculoImagen(db.Model):
