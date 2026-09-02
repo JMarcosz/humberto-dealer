@@ -10,6 +10,8 @@ from flask_limiter.util import get_remote_address
 from flask_compress import Compress
 from flask_caching import Cache
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 from .config import get_config
 from .models.base import db
 from .models.users import Usuario
@@ -29,6 +31,9 @@ def unauthorized():
 def create_app() -> Flask:
     app = Flask(__name__, instance_relative_config=False)
     app.config.from_object(get_config())
+
+    # Middleware para resolución correcta de IP del cliente detrás del reverse proxy Next.js
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
     # Extensions
     db.init_app(app)
@@ -76,6 +81,28 @@ def create_app() -> Flask:
     from .services.whatsapp import start_followup_thread
     start_followup_thread(app)
 
+    # Protección CSRF por verificación de Origin en métodos mutables
+    @app.before_request
+    def verificar_csrf_origin():
+        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            if request.path.startswith("/api/whatsapp"):
+                return
+            origin = request.headers.get("Origin")
+            if origin:
+                expected_frontend = app.config["FRONTEND_URL"].rstrip("/")
+                if origin != expected_frontend:
+                    return jsonify({"error": "Origen no autorizado"}), 403
+
+    # Healthcheck para Docker / orquestadores (sin fuga de información)
+    @app.route('/api/health')
+    def health_check():
+        try:
+            db.session.execute(db.text("SELECT 1"))
+            return jsonify({"status": "healthy", "database": "connected"}), 200
+        except Exception as e:
+            logging.getLogger(__name__).error("Health check error: %s", e)
+            return jsonify({"status": "unhealthy", "error": "Servicio no disponible"}), 503
+
     # Servir archivos subidos (imágenes de vehículos)
     @app.route('/api/uploads/<path:filename>')
     def serve_upload(filename):
@@ -87,8 +114,16 @@ def create_app() -> Flask:
     def add_security_headers(response):
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['X-XSS-Protection'] = '0'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=(self)'
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "img-src 'self' data: https://images.unsplash.com; "
+            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self'; "
+            "frame-ancestors 'self';"
+        )
         if not app.debug:
             response.headers['Strict-Transport-Security'] = (
                 'max-age=31536000; includeSubDomains; preload'

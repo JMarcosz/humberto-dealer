@@ -1,0 +1,15 @@
+.git
+.gitignore
+.claude
+.vscode
+.idea
+*.md
+!README.md
+node_modules
+.next
+.venv
+venv
+__pycache__
+*.pyc
+uploads/
+Inventario Excel/

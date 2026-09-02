@@ -1,0 +1,101 @@
+services:
+  # ── Base de Datos: MySQL 8.0 ───────────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: humberto_db
+    restart: unless-stopped
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-concesionaria}
+      MYSQL_USER: ${MYSQL_USER:?Error: Variable MYSQL_USER es requerida}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Error: Variable MYSQL_PASSWORD es requerida}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Error: Variable MYSQL_ROOT_PASSWORD es requerida}
+    ports:
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    networks:
+      - dealer-network
+
+  # ── Backend: Flask 3 + Gunicorn ────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: humberto_backend
+    restart: unless-stopped
+    environment:
+      FLASK_ENV: ${FLASK_ENV:-production}
+      FLASK_DEBUG: ${FLASK_DEBUG:-0}
+      SECRET_KEY: ${SECRET_KEY:?Error: Variable SECRET_KEY es requerida (minimo 32 caracteres)}
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-concesionaria}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      UPLOAD_FOLDER: /app/uploads
+      WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      WHATSAPP_OWNER_NUMBER: ${WHATSAPP_OWNER_NUMBER:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    ports:
+      - "127.0.0.1:5001:5001"
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - dealer-network
+
+  # ── Frontend: Next.js 16 Standalone ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+        BACKEND_URL: ${BACKEND_URL:-http://backend:5001/api}
+    container_name: humberto_frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+      BACKEND_URL: ${BACKEND_URL:-http://backend:5001/api}
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_PHONE_NUMBER: ${NEXT_PUBLIC_PHONE_NUMBER:-8095551234}
+      NEXT_PUBLIC_PHONE_FORMATTED: ${NEXT_PUBLIC_PHONE_FORMATTED:-(809) 555-1234}
+      NEXT_PUBLIC_CONTACT_EMAIL: ${NEXT_PUBLIC_CONTACT_EMAIL:-info@humbertodealer.com}
+      NEXT_PUBLIC_BUSINESS_ADDRESS: ${NEXT_PUBLIC_BUSINESS_ADDRESS:-Av. 27 de Febrero, Santo Domingo, D.N.}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - dealer-network
+
+volumes:
+  db_data:
+    name: humberto_db_data
+  uploads_data:
+    name: humberto_uploads_data
+
+networks:
+  dealer-network:
+    name: humberto_network
+    driver: bridge

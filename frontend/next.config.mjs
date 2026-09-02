@@ -10,6 +10,7 @@ const remotePatterns = [
 ]
 
 const nextConfig = {
+  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },

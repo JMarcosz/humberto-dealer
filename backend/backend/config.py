@@ -35,6 +35,7 @@ class Config:
 
     # WhatsApp Business API — opcionales (bot desactivado si están vacíos)
     WHATSAPP_API_KEY         = os.getenv("WHATSAPP_API_KEY", "")
+    WHATSAPP_APP_SECRET      = os.getenv("WHATSAPP_APP_SECRET", "")
     WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
     WHATSAPP_VERIFY_TOKEN    = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
     WHATSAPP_OWNER_NUMBER    = os.getenv("WHATSAPP_OWNER_NUMBER", "")
@@ -43,15 +44,15 @@ class Config:
     GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
     GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
-    # Dealer location — requeridos
-    DEALER_LAT     = float(os.environ["DEALER_LAT"])
-    DEALER_LNG     = float(os.environ["DEALER_LNG"])
-    DEALER_PLACE   = os.environ["DEALER_PLACE"]
-    DEALER_ADDRESS = os.environ["DEALER_ADDRESS"]
+    # Dealer location — con fallbacks seguros
+    DEALER_LAT     = float(os.getenv("DEALER_LAT", "18.486058"))
+    DEALER_LNG     = float(os.getenv("DEALER_LNG", "-69.931212"))
+    DEALER_PLACE   = os.getenv("DEALER_PLACE", "Santo Domingo")
+    DEALER_ADDRESS = os.getenv("DEALER_ADDRESS", "Av. 27 de Febrero, Santo Domingo, D.N.")
 
-    # Catálogo y mapas para el bot de WhatsApp — requeridos
-    CATALOG_URL      = os.environ["CATALOG_URL"]
-    GOOGLE_MAPS_LINK = os.environ["GOOGLE_MAPS_LINK"]
+    # Catálogo y mapas para el bot de WhatsApp
+    CATALOG_URL      = os.getenv("CATALOG_URL", "http://localhost:3000/catalogo")
+    GOOGLE_MAPS_LINK = os.getenv("GOOGLE_MAPS_LINK", "https://maps.google.com")
 
     # Subida de archivos
     UPLOAD_FOLDER = os.getenv(
@@ -69,7 +70,7 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
-    SESSION_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_SAMESITE = "Lax"
     SESSION_COOKIE_SECURE   = True
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_NAME     = "__Host-session"
