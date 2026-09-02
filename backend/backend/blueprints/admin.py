@@ -447,3 +447,222 @@ def set_imagen_principal(iid: int):
         db.session.rollback()
         log.error("set_imagen_principal %d: %s", iid, exc)
         return jsonify({"error": "Error interno"}), 500
+
+
+# ===============================================================
+# OPERACIONES DE RENTA DE AUTOS (US-RENT-05)
+# ===============================================================
+
+# ---------------------------------------------------------------
+# GET /api/admin/renta/reservas
+# Query params: page, per_page, estado, buscar (PNR o conductor)
+# ---------------------------------------------------------------
+@bp.get("/renta/reservas")
+@admin_required
+def listar_reservas_renta_admin():
+    try:
+        page     = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 20, type=int)
+        estado   = request.args.get("estado")
+        buscar   = request.args.get("buscar", "").strip()
+
+        q = ReservaRenta.query.options(
+            joinedload(ReservaRenta.vehiculo).joinedload(Vehiculo.modelo).joinedload(Modelo.marca),
+            joinedload(ReservaRenta.sucursal_recogida),
+            joinedload(ReservaRenta.sucursal_devolucion),
+            joinedload(ReservaRenta.cobertura),
+        )
+
+        if estado and estado.upper() != "ALL":
+            q = q.filter(ReservaRenta.estado == estado.upper())
+
+        if buscar:
+            like = f"%{buscar}%"
+            q = q.filter(
+                db.or_(
+                    ReservaRenta.pnr.ilike(like),
+                    ReservaRenta.conductor_nombre.ilike(like),
+                    ReservaRenta.conductor_apellido.ilike(like),
+                    ReservaRenta.conductor_documento.ilike(like),
+                    ReservaRenta.conductor_email.ilike(like),
+                )
+            )
+
+        paginado = q.order_by(ReservaRenta.fecha_inicio.desc()).paginate(
+            page=page, per_page=min(per_page, 100), error_out=False
+        )
+
+        return jsonify({
+            "total": paginado.total,
+            "page": paginado.page,
+            "pages": paginado.pages,
+            "items": [r.to_dict(include_detalle=True) for r in paginado.items],
+        })
+    except Exception as exc:
+        log.error("listar_reservas_renta_admin: %s", exc)
+        return jsonify({"error": "Error interno"}), 500
+
+
+# ---------------------------------------------------------------
+# POST /api/admin/renta/check-in   (Entrega del vehículo al cliente)
+# Body: { reserva_id o pnr, odometro, combustible, observaciones_danos, fotos_urls }
+# ---------------------------------------------------------------
+@bp.post("/renta/check-in")
+@admin_required
+def registrar_check_in():
+    try:
+        data        = request.get_json(silent=True) or {}
+        reserva_id  = data.get("reserva_id")
+        pnr         = data.get("pnr")
+        odometro    = data.get("odometro")
+        combustible = data.get("combustible", "8/8")
+        obs         = data.get("observaciones_danos", "")
+        fotos       = data.get("fotos_urls", "")
+
+        if not odometro or (not reserva_id and not pnr):
+            return jsonify({"error": "Se requiere reserva_id o pnr, y el odómetro actual"}), 400
+
+        reserva = None
+        if reserva_id:
+            reserva = db.session.get(ReservaRenta, int(reserva_id))
+        elif pnr:
+            reserva = ReservaRenta.query.filter_by(pnr=pnr.strip().upper()).first()
+
+        if not reserva:
+            return jsonify({"error": "Reserva no encontrada"}), 404
+
+        if reserva.estado != "CONFIRMADA":
+            return jsonify({"error": f"No se puede realizar Check-in en una reserva con estado {reserva.estado}"}), 422
+
+        inspeccion = InspeccionRenta(
+            reserva_id          = reserva.id,
+            tipo                = "ENTREGA",
+            odometro            = int(odometro),
+            combustible         = combustible,
+            observaciones_danos = obs,
+            fotos_urls          = fotos if isinstance(fotos, str) else ",".join(fotos),
+        )
+        db.session.add(inspeccion)
+
+        # Transición de estado a EN_CURSO
+        reserva.estado = "EN_CURSO"
+        db.session.commit()
+
+        log.info("Check-in registrado para reserva PNR %s: odómetro=%d, combustible=%s", reserva.pnr, int(odometro), combustible)
+        return jsonify({
+            "mensaje": "Check-in registrado exitosamente. Vehículo entregado.",
+            "reserva": reserva.to_dict(include_detalle=True),
+        })
+    except Exception as exc:
+        db.session.rollback()
+        log.error("registrar_check_in: %s", exc)
+        return jsonify({"error": "Error interno"}), 500
+
+
+# ---------------------------------------------------------------
+# POST /api/admin/renta/check-out   (Devolución y cierre de la renta)
+# Body: { reserva_id o pnr, odometro, combustible, observaciones_danos, fotos_urls }
+# ---------------------------------------------------------------
+@bp.post("/renta/check-out")
+@admin_required
+def registrar_check_out():
+    try:
+        data        = request.get_json(silent=True) or {}
+        reserva_id  = data.get("reserva_id")
+        pnr         = data.get("pnr")
+        odometro    = data.get("odometro")
+        combustible = data.get("combustible", "8/8")
+        obs         = data.get("observaciones_danos", "")
+        fotos       = data.get("fotos_urls", "")
+
+        if not odometro or (not reserva_id and not pnr):
+            return jsonify({"error": "Se requiere reserva_id o pnr, y el odómetro actual"}), 400
+
+        reserva = None
+        if reserva_id:
+            reserva = db.session.get(ReservaRenta, int(reserva_id))
+        elif pnr:
+            reserva = ReservaRenta.query.filter_by(pnr=pnr.strip().upper()).first()
+
+        if not reserva:
+            return jsonify({"error": "Reserva no encontrada"}), 404
+
+        if reserva.estado != "EN_CURSO":
+            return jsonify({"error": f"No se puede realizar Check-out en una reserva con estado {reserva.estado}"}), 422
+
+        inspeccion = InspeccionRenta(
+            reserva_id          = reserva.id,
+            tipo                = "DEVOLUCION",
+            odometro            = int(odometro),
+            combustible         = combustible,
+            observaciones_danos = obs,
+            fotos_urls          = fotos if isinstance(fotos, str) else ",".join(fotos),
+        )
+        db.session.add(inspeccion)
+
+        # Actualizar kilometraje del vehículo si es mayor
+        if reserva.vehiculo and int(odometro) > (reserva.vehiculo.kilometraje or 0):
+            reserva.vehiculo.kilometraje = int(odometro)
+
+        # Transición de estado a COMPLETADA
+        reserva.estado = "COMPLETADA"
+        db.session.commit()
+
+        log.info("Check-out registrado para reserva PNR %s: odómetro=%d, combustible=%s", reserva.pnr, int(odometro), combustible)
+        return jsonify({
+            "mensaje": "Check-out registrado exitosamente. Renta finalizada y depósito en garantía liberado.",
+            "reserva": reserva.to_dict(include_detalle=True),
+        })
+    except Exception as exc:
+        db.session.rollback()
+        log.error("registrar_check_out: %s", exc)
+        return jsonify({"error": "Error interno"}), 500
+
+
+# ---------------------------------------------------------------
+# POST /api/admin/renta/tarifas   (Configurar o actualizar tarifa de renta)
+# Body: { vehiculo_id, precio_dia_base, deposito_garantia, moneda, kilometraje_incluido }
+# ---------------------------------------------------------------
+@bp.post("/renta/tarifas")
+@admin_required
+def guardar_tarifa_renta():
+    try:
+        data    = request.get_json(silent=True) or {}
+        vid     = data.get("vehiculo_id")
+        precio  = data.get("precio_dia_base")
+        depo    = data.get("deposito_garantia", 500.0)
+        moneda  = data.get("moneda", "USD")
+        km_inc  = data.get("kilometraje_incluido", "ILIMITADO")
+
+        if not vid or precio is None:
+            return jsonify({"error": "vehiculo_id y precio_dia_base son requeridos"}), 400
+
+        vehiculo = db.get_or_404(Vehiculo, int(vid))
+        vehiculo.disponible_para = data.get("disponible_para", "AMBOS")
+        if "pasajeros" in data:
+            vehiculo.pasajeros = int(data["pasajeros"])
+        if "maletas_grandes" in data:
+            vehiculo.maletas_grandes = int(data["maletas_grandes"])
+        if "maletas_pequenas" in data:
+            vehiculo.maletas_pequenas = int(data["maletas_pequenas"])
+
+        tarifa = TarifaRenta.query.filter_by(vehiculo_id=vehiculo.id).first()
+        if not tarifa:
+            tarifa = TarifaRenta(vehiculo_id=vehiculo.id)
+            db.session.add(tarifa)
+
+        tarifa.precio_dia_base      = float(precio)
+        tarifa.deposito_garantia    = float(depo)
+        tarifa.moneda               = moneda
+        tarifa.kilometraje_incluido = km_inc
+        tarifa.activo               = data.get("activo", True)
+
+        db.session.commit()
+        return jsonify({
+            "mensaje": "Tarifa de renta actualizada exitosamente",
+            "tarifa": tarifa.to_dict(),
+        })
+    except Exception as exc:
+        db.session.rollback()
+        log.error("guardar_tarifa_renta: %s", exc)
+        return jsonify({"error": "Error interno"}), 500

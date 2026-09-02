@@ -73,7 +73,176 @@ def seed():
             db.session.commit()
             print("Password hash de carlos actualizado con bcrypt real.")
 
-        print("\nSeed completado.")
+        # Semillas de Renta de Autos
+        from backend.models.renta import Sucursal, CoberturaSeguro, ExtraServicio, TarifaRenta
+        from backend.models.catalog import Vehiculo, Modelo
+
+        # 1. Sucursales
+        if not Sucursal.query.first():
+            db.session.add_all([
+                Sucursal(
+                    nombre="Aeropuerto Internacional Las Américas (SDQ)",
+                    codigo_aeropuerto="SDQ",
+                    direccion="Ruta 66, Salida Terminal A, Santo Domingo Este",
+                    ciudad="Santo Domingo",
+                    telefono="+1 (809) 555-7368",
+                    horario_atencion="24/7 (Atención continua)",
+                    latitud=18.4297,
+                    longitud=-69.6689,
+                    activo=True,
+                ),
+                Sucursal(
+                    nombre="Santo Domingo Centro (Piantini)",
+                    codigo_aeropuerto=None,
+                    direccion="Av. Abraham Lincoln esq. Andrés Julio Aybar, Piantini",
+                    ciudad="Santo Domingo",
+                    telefono="+1 (809) 555-7369",
+                    horario_atencion="Lunes a Domingo: 07:00 AM - 09:00 PM",
+                    latitud=18.4721,
+                    longitud=-69.9389,
+                    activo=True,
+                ),
+                Sucursal(
+                    nombre="Aeropuerto La Isabela / Joaquín Balaguer (JBQ)",
+                    codigo_aeropuerto="JBQ",
+                    direccion="Av. Aeropuerto La Isabela, El Higüero",
+                    ciudad="Santo Domingo Norte",
+                    telefono="+1 (809) 555-7370",
+                    horario_atencion="07:00 AM - 07:00 PM",
+                    latitud=18.5719,
+                    longitud=-69.9861,
+                    activo=True,
+                ),
+            ])
+            db.session.commit()
+            print("Sucursales de renta creadas.")
+        else:
+            print("Sucursales ya existen, omitiendo.")
+
+        # 2. Coberturas de Seguro
+        if not CoberturaSeguro.query.first():
+            db.session.add_all([
+                CoberturaSeguro(
+                    codigo="TPL_BASICO",
+                    nombre="Protección Básica (TPL Obligatorio)",
+                    costo_dia=0.00,
+                    deposito_requerido=800.00,
+                    deducible_monto=1000.00,
+                    descripcion="Seguro de Responsabilidad Civil contra Daños a Terceros requerido por ley en República Dominicana.",
+                    bullets_json="Responsabilidad Civil Daños a Terceros (TPL);Asistencia Vial Básica en Santo Domingo;Depósito de garantía retenido en tarjeta: US$ 800",
+                    destacado=False,
+                    activo=True,
+                ),
+                CoberturaSeguro(
+                    codigo="CDW_ESTANDAR",
+                    nombre="Protección Estándar (CDW)",
+                    costo_dia=15.00,
+                    deposito_requerido=400.00,
+                    deducible_monto=500.00,
+                    descripcion="Cobertura ante colisión y robo con deducible reducido a US$ 500 y depósito en tarjeta de solo US$ 400.",
+                    bullets_json="Cobertura por Daños de Colisión (CDW);Protección contra Robo Total;Depósito de garantía reducido a US$ 400;Asistencia vial 24/7 en carretera",
+                    destacado=True,
+                    activo=True,
+                ),
+                CoberturaSeguro(
+                    codigo="TOTAL_PROTECTION",
+                    nombre="Protección Total Cero Deducible",
+                    costo_dia=28.00,
+                    deposito_requerido=150.00,
+                    deducible_monto=0.00,
+                    descripcion="Tranquilidad absoluta sin deducible ante colisiones, robo, rotura de cristales y daños a neumáticos.",
+                    bullets_json="Cero Deducible / Sin Franquicia;Cobertura de Cristales, Parabrisas y Neumáticos;Depósito mínimo en tarjeta de US$ 150;Remolque y grúa nacional ilimitados",
+                    destacado=False,
+                    activo=True,
+                ),
+            ])
+            db.session.commit()
+            print("Coberturas de seguro creadas.")
+        else:
+            print("Coberturas ya existen, omitiendo.")
+
+        # 3. Extras / Adicionales
+        if not ExtraServicio.query.first():
+            db.session.add_all([
+                ExtraServicio(
+                    codigo="SILLA_BEBE",
+                    nombre="Silla de Seguridad para Infantes",
+                    descripcion="Asiento homologado para niños (0 a 4 años) conforme a regulaciones viales.",
+                    costo_dia=8.00,
+                    es_pago_unico=False,
+                    icono="baby",
+                    activo=True,
+                ),
+                ExtraServicio(
+                    codigo="PASO_RAPIDO",
+                    nombre="Dispositivo Paso Rápido Peajes RD",
+                    descripcion="Tag electrónico prepagado para cruzar sin filas todos los peajes de autopistas dominicanas.",
+                    costo_dia=5.00,
+                    es_pago_unico=False,
+                    icono="credit-card",
+                    activo=True,
+                ),
+                ExtraServicio(
+                    codigo="CONDUCTOR_EXTRA",
+                    nombre="Conductor Adicional Autorizado",
+                    descripcion="Habilita legalmente a un segundo conductor con cobertura de la póliza contratada.",
+                    costo_dia=10.00,
+                    es_pago_unico=False,
+                    icono="users",
+                    activo=True,
+                ),
+                ExtraServicio(
+                    codigo="WIFI_PORTATIL",
+                    nombre="Hotspot Wi-Fi 4G Ilimitado",
+                    descripcion="Módem Wi-Fi portátil para conectar hasta 5 dispositivos con internet en todo el país.",
+                    costo_dia=9.00,
+                    es_pago_unico=False,
+                    icono="wifi",
+                    activo=True,
+                ),
+            ])
+            db.session.commit()
+            print("Extras de renta creados.")
+        else:
+            print("Extras ya existen, omitiendo.")
+
+        # 4. Asignar tarifas de renta a vehículos existentes
+        vehiculos = Vehiculo.query.all()
+        for v in vehiculos:
+            if not v.tarifa_renta:
+                # Determinar tarifa según categoría del modelo
+                cat = v.modelo.categoria if v.modelo else "OTRO"
+                if cat in ("SUV", "PICKUP"):
+                    precio_dia = 55.00
+                    deposito = 600.00
+                elif cat in ("VAN", "CONVERTIBLE"):
+                    precio_dia = 75.00
+                    deposito = 800.00
+                else:
+                    precio_dia = 38.00
+                    deposito = 450.00
+
+                v.disponible_para = "AMBOS"
+                v.pasajeros = 7 if cat == "VAN" else 5
+                v.maletas_grandes = 3 if cat in ("SUV", "VAN") else 2
+                v.maletas_pequenas = 2
+                v.tiene_aire_acondicionado = True
+
+                tarifa = TarifaRenta(
+                    vehiculo_id=v.id,
+                    precio_dia_base=precio_dia,
+                    deposito_garantia=deposito,
+                    moneda="USD",
+                    kilometraje_incluido="ILIMITADO",
+                    politica_combustible="LLENO_A_LLENO",
+                    activo=True,
+                )
+                db.session.add(tarifa)
+
+        db.session.commit()
+        print("Tarifas de renta asignadas a vehículos.")
+
+        print("\nSeed completado exitosamente.")
         print("  Admin:   admin@concesionaria.com / admin123")
         print("  Cliente: maria@email.com / user1234")
         print("  Cliente: carlos@email.com / user1234")
