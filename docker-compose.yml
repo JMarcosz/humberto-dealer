@@ -14,7 +14,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dealer_secure_password_123}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-dealer_root_password_456}
     ports:
-      - "127.0.0.1:${DB_PORT:-3306}:3306"
+      - "${DB_PORT:-3306}:3306"
     volumes:
       - db_data:/var/lib/mysql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
@@ -54,7 +54,7 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     ports:
-      - "127.0.0.1:5001:5001"
+      - "${BACKEND_PORT:-5001}:5001"
     volumes:
       - uploads_data:/app/uploads
     depends_on:
@@ -83,7 +83,7 @@ services:
       NEXT_PUBLIC_CONTACT_EMAIL: ${NEXT_PUBLIC_CONTACT_EMAIL:-info@humbertodealer.com}
       NEXT_PUBLIC_BUSINESS_ADDRESS: ${NEXT_PUBLIC_BUSINESS_ADDRESS:-Av. 27 de Febrero, Santo Domingo, D.N.}
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
     networks:
