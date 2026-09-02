@@ -1,17 +1,17 @@
 # ==============================================================================
 # Multi-Stage Dockerfile for Humberto Dealer Frontend (Next.js 16 Standalone)
-# Base: node:20-alpine
+# Base: node:22-alpine (requerido por pnpm 11 y node:sqlite)
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
 # Stage 1: Dependencies (descarga y caché de dependencias pnpm)
 # ------------------------------------------------------------------------------
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Habilitar pnpm mediante Corepack
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Habilitar pnpm mediante Corepack (versión 11 compatible)
+RUN corepack enable && corepack prepare pnpm@11.5.2 --activate
 
 # Copiar manifiestos y lockfile para aprovechar caché de capas
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* ./
@@ -20,10 +20,10 @@ RUN pnpm install --frozen-lockfile
 # ------------------------------------------------------------------------------
 # Stage 2: Builder (compilación de la app con Next.js Standalone)
 # ------------------------------------------------------------------------------
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@11.5.2 --activate
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -43,7 +43,7 @@ RUN pnpm run build
 # ------------------------------------------------------------------------------
 # Stage 3: Runner (imagen ultra-ligera de producción ~160 MB)
 # ------------------------------------------------------------------------------
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \
