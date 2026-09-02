@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
-import { Search, X, SlidersHorizontal } from 'lucide-react'
+import { Search, X, SlidersHorizontal, ArrowUpDown } from 'lucide-react'
 import type { Marca, Modelo } from '@/lib/types'
 import { api } from '@/lib/api'
 
@@ -22,8 +22,13 @@ export interface VehicleFilterValues {
   modelo_id?: number
   anio?: number
   tipo?: string
+  transmision?: string
+  combustible?: string
+  orden?: string
   precioMin?: number
   precioMax?: number
+  precioDiaMin?: number
+  precioDiaMax?: number
   kilometrajeMax?: number
   busqueda?: string
 }
@@ -32,18 +37,45 @@ interface VehicleFiltersProps {
   marcas: Marca[]
   onFilterChange: (filters: VehicleFilterValues) => void
   initialMarcaId?: number
+  mode?: 'renta' | 'venta'
 }
 
 const TIPOS = ['sedan', 'suv', 'coupe', 'convertible', 'pickup', 'van', 'otro']
 const AÑOS_RANGO = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i)
 
-export function VehicleFilters({ marcas, onFilterChange, initialMarcaId }: VehicleFiltersProps) {
+const COMBUSTIBLES = [
+  { value: 'all', label: 'Todos' },
+  { value: 'GASOLINA', label: 'Gasolina' },
+  { value: 'DIESEL', label: 'Diésel' },
+  { value: 'HIBRIDO', label: 'Híbrido' },
+  { value: 'ELECTRICO', label: 'Eléctrico' },
+]
+
+const TRANSMISIONES = [
+  { value: 'all', label: 'Todas' },
+  { value: 'AUTOMATICA', label: 'Automática' },
+  { value: 'MANUAL', label: 'Manual' },
+  { value: 'CVT', label: 'CVT' },
+]
+
+const OPCIONES_ORDEN = [
+  { value: 'recientes', label: 'Más recientes' },
+  { value: 'precio_asc', label: 'Menor precio' },
+  { value: 'precio_desc', label: 'Mayor precio' },
+  { value: 'anio_desc', label: 'Año: más nuevo' },
+  { value: 'kilometraje_asc', label: 'Menor kilometraje' },
+]
+
+export function VehicleFilters({ marcas, onFilterChange, initialMarcaId, mode = 'renta' }: VehicleFiltersProps) {
   const [filters, setFilters] = useState<VehicleFilterValues>(
     initialMarcaId ? { marca_id: initialMarcaId } : {}
   )
   const [modelos, setModelos] = useState<Modelo[]>([])
   const [showFilters, setShowFilters] = useState(false)
-  const [precioRange, setPrecioRange] = useState([0, 300000])
+
+  // Sliders independientes según modo
+  const [precioVentaRange, setPrecioVentaRange] = useState([5000, 150000])
+  const [precioDiaRange, setPrecioDiaRange] = useState([20, 200])
   const [kmMax, setKmMax] = useState(100000)
 
   const updateFilters = useCallback((newFilters: VehicleFilterValues) => {
@@ -51,7 +83,7 @@ export function VehicleFilters({ marcas, onFilterChange, initialMarcaId }: Vehic
     onFilterChange(newFilters)
   }, [onFilterChange])
 
-  // Load modelos when marca changes
+  // Cargar modelos cuando cambia la marca
   useEffect(() => {
     if (filters.marca_id) {
       api.getModelosPorMarca(filters.marca_id).then(setModelos).catch(() => setModelos([]))
@@ -59,6 +91,18 @@ export function VehicleFilters({ marcas, onFilterChange, initialMarcaId }: Vehic
       setModelos([])
     }
   }, [filters.marca_id])
+
+  // Limpiar filtros de precio al cambiar de modo
+  useEffect(() => {
+    if (mode === 'renta') {
+      const { precioMin, precioMax, ...rest } = filters
+      updateFilters({ ...rest, precioDiaMin: precioDiaRange[0], precioDiaMax: precioDiaRange[1] })
+    } else {
+      const { precioDiaMin, precioDiaMax, ...rest } = filters
+      updateFilters({ ...rest, precioMin: precioVentaRange[0], precioMax: precioVentaRange[1] })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
 
   const handleMarcaChange = (value: string) => {
     if (value === 'all') {
@@ -87,9 +131,26 @@ export function VehicleFilters({ marcas, onFilterChange, initialMarcaId }: Vehic
     updateFilters({ ...filters, tipo: value === 'all' ? undefined : value })
   }
 
-  const handlePrecioChange = (value: number[]) => {
-    setPrecioRange(value)
+  const handleTransmisionChange = (value: string) => {
+    updateFilters({ ...filters, transmision: value === 'all' ? undefined : value })
+  }
+
+  const handleCombustibleChange = (value: string) => {
+    updateFilters({ ...filters, combustible: value === 'all' ? undefined : value })
+  }
+
+  const handleOrdenChange = (value: string) => {
+    updateFilters({ ...filters, orden: value })
+  }
+
+  const handlePrecioVentaChange = (value: number[]) => {
+    setPrecioVentaRange(value)
     updateFilters({ ...filters, precioMin: value[0], precioMax: value[1] })
+  }
+
+  const handlePrecioDiaChange = (value: number[]) => {
+    setPrecioDiaRange(value)
+    updateFilters({ ...filters, precioDiaMin: value[0], precioDiaMax: value[1] })
   }
 
   const handleKmChange = (value: number[]) => {
@@ -103,40 +164,58 @@ export function VehicleFilters({ marcas, onFilterChange, initialMarcaId }: Vehic
 
   const clearFilters = () => {
     setFilters({})
-    setPrecioRange([0, 300000])
+    setPrecioVentaRange([5000, 150000])
+    setPrecioDiaRange([20, 200])
     setKmMax(100000)
     onFilterChange({})
   }
 
-  const hasActiveFilters = Object.values(filters).some(v => v !== undefined)
+  const hasActiveFilters = Object.entries(filters).some(([k, v]) => v !== undefined && k !== 'orden')
 
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP', maximumFractionDigits: 0 }).format(price)
+  const formatCurrency = (amount: number) => `US$ ${amount.toLocaleString('en-US')}`
 
   return (
     <div className="space-y-4">
-      {/* Search Bar */}
-      <div className="flex gap-2">
+      {/* Search Bar y Selector de Ordenamiento */}
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por marca, modelo, color..."
-            className="pl-10"
+            placeholder={mode === 'renta' ? "Buscar auto para rentar (marca, modelo, año)..." : "Buscar auto para comprar (marca, modelo, año)..."}
+            className="pl-10 h-11"
             value={filters.busqueda || ''}
             onChange={handleSearchChange}
           />
         </div>
+
+        {/* Dropdown de Ordenamiento */}
+        <div className="w-full sm:w-56">
+          <Select value={filters.orden || 'recientes'} onValueChange={handleOrdenChange}>
+            <SelectTrigger className="h-11">
+              <div className="flex items-center gap-2">
+                <ArrowUpDown className="h-4 w-4 text-orange-500" />
+                <SelectValue placeholder="Ordenar por" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              {OPCIONES_ORDEN.map(op => (
+                <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <Button
           variant="outline"
-          className="gap-2 md:hidden"
+          className="gap-2 md:hidden h-11"
           onClick={() => setShowFilters(!showFilters)}
         >
-          <SlidersHorizontal className="h-4 w-4" />
+          <SlidersHorizontal className="h-4 w-4 text-orange-500" />
           Filtros
         </Button>
       </div>
 
-      {/* Filters */}
+      {/* Grid de Filtros */}
       <div className={`space-y-4 ${showFilters ? 'block' : 'hidden'} md:block`}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Marca */}
@@ -178,6 +257,52 @@ export function VehicleFilters({ marcas, onFilterChange, initialMarcaId }: Vehic
             </Select>
           </div>
 
+          {/* Tipo / Categoría */}
+          <div className="space-y-2">
+            <Label>Carrocería</Label>
+            <Select value={filters.tipo ?? 'all'} onValueChange={handleTipoChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Todos los tipos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las carrocerías</SelectItem>
+                {TIPOS.map(tipo => (
+                  <SelectItem key={tipo} value={tipo} className="capitalize">{tipo}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Transmisión */}
+          <div className="space-y-2">
+            <Label>Transmisión</Label>
+            <Select value={filters.transmision ?? 'all'} onValueChange={handleTransmisionChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Cualquiera" />
+              </SelectTrigger>
+              <SelectContent>
+                {TRANSMISIONES.map(t => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Combustible */}
+          <div className="space-y-2">
+            <Label>Combustible</Label>
+            <Select value={filters.combustible ?? 'all'} onValueChange={handleCombustibleChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Todos los combustibles" />
+              </SelectTrigger>
+              <SelectContent>
+                {COMBUSTIBLES.map(c => (
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Año */}
           <div className="space-y-2">
             <Label>Año</Label>
@@ -194,48 +319,47 @@ export function VehicleFilters({ marcas, onFilterChange, initialMarcaId }: Vehic
             </Select>
           </div>
 
-          {/* Tipo */}
-          <div className="space-y-2">
-            <Label>Tipo</Label>
-            <Select value={filters.tipo ?? 'all'} onValueChange={handleTipoChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Todos los tipos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los tipos</SelectItem>
-                {TIPOS.map(tipo => (
-                  <SelectItem key={tipo} value={tipo} className="capitalize">{tipo}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Price & Km Sliders */}
-        <div className="grid gap-6 sm:grid-cols-2">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Precio</Label>
-              <span className="text-sm text-muted-foreground">
-                {formatPrice(precioRange[0])} - {formatPrice(precioRange[1])}
-              </span>
+          {/* Sliders Dinámicos de Presupuesto */}
+          {mode === 'renta' ? (
+            <div className="space-y-2 sm:col-span-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">Tarifa Diaria (USD / día)</Label>
+                <span className="text-xs font-bold text-orange-500">
+                  {formatCurrency(precioDiaRange[0])}/día — {formatCurrency(precioDiaRange[1])}/día
+                </span>
+              </div>
+              <Slider
+                value={precioDiaRange}
+                onValueChange={handlePrecioDiaChange}
+                min={20}
+                max={250}
+                step={5}
+                className="py-2"
+              />
             </div>
-            <Slider value={precioRange} onValueChange={handlePrecioChange} min={0} max={300000} step={5000} />
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Kilometraje máximo</Label>
-              <span className="text-sm text-muted-foreground">
-                {new Intl.NumberFormat('es-DO').format(kmMax)} km
-              </span>
+          ) : (
+            <div className="space-y-2 sm:col-span-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">Precio de Venta</Label>
+                <span className="text-xs font-bold text-orange-500">
+                  {formatCurrency(precioVentaRange[0])} — {formatCurrency(precioVentaRange[1])}
+                </span>
+              </div>
+              <Slider
+                value={precioVentaRange}
+                onValueChange={handlePrecioVentaChange}
+                min={5000}
+                max={150000}
+                step={2500}
+                className="py-2"
+              />
             </div>
-            <Slider value={[kmMax]} onValueChange={handleKmChange} min={0} max={100000} step={1000} />
-          </div>
+          )}
         </div>
 
         {hasActiveFilters && (
-          <div className="flex justify-end">
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-2">
+          <div className="flex justify-end pt-2">
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-2 text-xs">
               <X className="h-4 w-4" />
               Limpiar filtros
             </Button>

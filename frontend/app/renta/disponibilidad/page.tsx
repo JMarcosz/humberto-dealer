@@ -1,9 +1,9 @@
 'use client'
 
-import { Suspense, useState, useEffect } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { Suspense, useState, useEffect, useCallback } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { api } from '@/lib/api'
-import type { RentalVehicle, DisponibilidadRentaResponse, Sucursal } from '@/lib/types'
+import type { DisponibilidadRentaResponse, Sucursal } from '@/lib/types'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { RentalSearchWidget } from '@/components/rental-search-widget'
@@ -11,21 +11,30 @@ import { RentalVehicleCard } from '@/components/rental-vehicle-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Loader2,
   Car,
   Filter,
   SlidersHorizontal,
-  ArrowLeft,
   Calendar,
   MapPin,
-  Clock,
-  Sparkles,
-  AlertTriangle
+  AlertTriangle,
+  Users,
+  DollarSign,
+  ArrowUpDown,
+  RotateCcw,
 } from 'lucide-react'
 
 function DisponibilidadContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const pathname = usePathname()
 
   const fechaInicio = searchParams.get('fecha_inicio') || ''
   const fechaFin = searchParams.get('fecha_fin') || ''
@@ -37,13 +46,16 @@ function DisponibilidadContent() {
   const [error, setError] = useState<string | null>(null)
   const [sucursales, setSucursales] = useState<Record<number, Sucursal>>({})
 
-  // Filtros locales
-  const [categoriaFiltro, setCategoriaFiltro] = useState<string>('all')
-  const [transmisionFiltro, setTransmisionFiltro] = useState<string>('all')
+  // Filtros reactivos sincronizados con URL
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string>(searchParams.get('categoria') || 'all')
+  const [transmisionFiltro, setTransmisionFiltro] = useState<string>(searchParams.get('transmision') || 'all')
+  const [pasajerosFiltro, setPasajerosFiltro] = useState<string>(searchParams.get('pasajeros') || 'all')
+  const [precioRangoFiltro, setPrecioRangoFiltro] = useState<string>(searchParams.get('rango_precio') || 'all')
+  const [ordenFiltro, setOrdenFiltro] = useState<string>(searchParams.get('orden') || 'precio_asc')
   const [filtrosMobileAbiertos, setFiltrosMobileAbiertos] = useState(false)
 
+  // Cargar sucursales para el encabezado
   useEffect(() => {
-    // Cargar nombres de sucursales para encabezado
     api.getSucursales()
       .then((sucs) => {
         const map: Record<number, Sucursal> = {}
@@ -52,6 +64,27 @@ function DisponibilidadContent() {
       })
       .catch((err) => console.error(err))
   }, [])
+
+  // Sincronizar estado en URL (Deep Linking para compartir link)
+  const syncParamsToUrl = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (categoriaFiltro !== 'all') params.set('categoria', categoriaFiltro)
+    else params.delete('categoria')
+
+    if (transmisionFiltro !== 'all') params.set('transmision', transmisionFiltro)
+    else params.delete('transmision')
+
+    if (pasajerosFiltro !== 'all') params.set('pasajeros', pasajerosFiltro)
+    else params.delete('pasajeros')
+
+    if (precioRangoFiltro !== 'all') params.set('rango_precio', precioRangoFiltro)
+    else params.delete('rango_precio')
+
+    if (ordenFiltro !== 'precio_asc') params.set('orden', ordenFiltro)
+    else params.delete('orden')
+
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }, [categoriaFiltro, transmisionFiltro, pasajerosFiltro, precioRangoFiltro, ordenFiltro, pathname, router, searchParams])
 
   useEffect(() => {
     if (!fechaInicio || !fechaFin) {
@@ -63,33 +96,47 @@ function DisponibilidadContent() {
     setLoading(true)
     setError(null)
 
-    // Los filtros van al servidor: antes se descargaba la flota completa y se
-    // filtraba en el navegador, asi que el contador de resultados mentia.
+    // Determinar min/max de precio según rango seleccionado
+    let precioMin: number | undefined
+    let precioMax: number | undefined
+    if (precioRangoFiltro === 'economico') {
+      precioMax = 45
+    } else if (precioRangoFiltro === 'estandar') {
+      precioMin = 45
+      precioMax = 75
+    } else if (precioRangoFiltro === 'premium') {
+      precioMin = 75
+    }
+
     const temporizador = setTimeout(() => {
-    api.getDisponibilidadRenta({
-      fecha_inicio: fechaInicio,
-      fecha_fin: fechaFin,
-      sucursal_recogida_id: Number(sucursalRecogidaId),
-      sucursal_devolucion_id: Number(sucursalDevolucionId),
-      categoria: categoriaFiltro !== 'all' ? categoriaFiltro : undefined,
-      transmision: transmisionFiltro !== 'all' ? transmisionFiltro : undefined,
-    })
-      .then((res) => {
-        setData(res)
+      syncParamsToUrl()
+
+      api.getDisponibilidadRenta({
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        sucursal_recogida_id: Number(sucursalRecogidaId),
+        sucursal_devolucion_id: Number(sucursalDevolucionId),
+        categoria: categoriaFiltro !== 'all' ? categoriaFiltro : undefined,
+        transmision: transmisionFiltro !== 'all' ? transmisionFiltro : undefined,
+        pasajeros: pasajerosFiltro !== 'all' ? Number(pasajerosFiltro) : undefined,
+        precio_min: precioMin,
+        precio_max: precioMax,
+        orden: ordenFiltro,
       })
-      .catch((err) => {
-        setError(err.message || 'Error al buscar disponibilidad.')
-      })
-      .finally(() => setLoading(false))
-    }, 250)
+        .then((res) => {
+          setData(res)
+        })
+        .catch((err) => {
+          setError(err.message || 'Error al buscar disponibilidad.')
+        })
+        .finally(() => setLoading(false))
+    }, 200)
 
     return () => clearTimeout(temporizador)
   }, [fechaInicio, fechaFin, sucursalRecogidaId, sucursalDevolucionId,
-      categoriaFiltro, transmisionFiltro])
+      categoriaFiltro, transmisionFiltro, pasajerosFiltro, precioRangoFiltro, ordenFiltro, syncParamsToUrl])
 
-  // El servidor ya devuelve la lista filtrada.
   const vehiculosFiltrados = data?.vehiculos || []
-
   const sucRec = sucursales[Number(sucursalRecogidaId)]
   const sucDev = sucursales[Number(sucursalDevolucionId)]
 
@@ -107,6 +154,21 @@ function DisponibilidadContent() {
       return isoStr
     }
   }
+
+  const limpiarTodosLosFiltros = () => {
+    setCategoriaFiltro('all')
+    setTransmisionFiltro('all')
+    setPasajerosFiltro('all')
+    setPrecioRangoFiltro('all')
+    setOrdenFiltro('precio_asc')
+  }
+
+  const hayFiltrosActivos =
+    categoriaFiltro !== 'all' ||
+    transmisionFiltro !== 'all' ||
+    pasajerosFiltro !== 'all' ||
+    precioRangoFiltro !== 'all' ||
+    ordenFiltro !== 'precio_asc'
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -173,7 +235,7 @@ function DisponibilidadContent() {
               <span className="flex items-center gap-2 text-sm font-semibold">
                 <SlidersHorizontal className="h-4 w-4 text-orange-500" />
                 Filtros
-                {(categoriaFiltro !== 'all' || transmisionFiltro !== 'all') && (
+                {hayFiltrosActivos && (
                   <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
                 )}
               </span>
@@ -188,21 +250,82 @@ function DisponibilidadContent() {
               <h4 className="font-bold text-base flex items-center gap-2">
                 <Filter className="h-4 w-4 text-orange-500" /> Filtros
               </h4>
-              {(categoriaFiltro !== 'all' || transmisionFiltro !== 'all') && (
+              {hayFiltrosActivos && (
                 <button
-                  onClick={() => {
-                    setCategoriaFiltro('all')
-                    setTransmisionFiltro('all')
-                  }}
-                  className="text-xs text-orange-500 hover:underline"
+                  onClick={limpiarTodosLosFiltros}
+                  className="flex items-center gap-1 text-xs text-orange-500 hover:underline font-semibold"
                 >
-                  Limpiar
+                  <RotateCcw className="h-3 w-3" /> Limpiar
                 </button>
               )}
             </div>
 
-            {/* Filtro por Categoría */}
+            {/* 1. Filtro por Presupuesto Diario */}
             <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <DollarSign className="h-3.5 w-3.5 text-orange-500" /> Presupuesto por día
+              </label>
+              <div className="space-y-1">
+                {[
+                  { value: 'all', label: 'Todas las tarifas' },
+                  { value: 'economico', label: 'Económico (< US$ 45/día)' },
+                  { value: 'estandar', label: 'Estándar (US$ 45 - $75)' },
+                  { value: 'premium', label: 'Premium (+ US$ 75/día)' },
+                ].map((item) => (
+                  <label
+                    key={item.value}
+                    className="flex items-center justify-between text-sm p-1.5 rounded hover:bg-muted cursor-pointer"
+                  >
+                    <span className={precioRangoFiltro === item.value ? 'font-semibold text-orange-500' : ''}>
+                      {item.label}
+                    </span>
+                    <input
+                      type="radio"
+                      name="precio_filter"
+                      value={item.value}
+                      checked={precioRangoFiltro === item.value}
+                      onChange={(e) => setPrecioRangoFiltro(e.target.value)}
+                      className="accent-orange-500"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. Filtro por Pasajeros / Plazas */}
+            <div className="space-y-2 border-t pt-4">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-orange-500" /> Pasajeros
+              </label>
+              <div className="space-y-1">
+                {[
+                  { value: 'all', label: 'Cualquier capacidad' },
+                  { value: '4', label: '4 o más asientos' },
+                  { value: '5', label: '5 o más asientos' },
+                  { value: '7', label: '7 o más asientos (Familias)' },
+                ].map((item) => (
+                  <label
+                    key={item.value}
+                    className="flex items-center justify-between text-sm p-1.5 rounded hover:bg-muted cursor-pointer"
+                  >
+                    <span className={pasajerosFiltro === item.value ? 'font-semibold text-orange-500' : ''}>
+                      {item.label}
+                    </span>
+                    <input
+                      type="radio"
+                      name="pax_filter"
+                      value={item.value}
+                      checked={pasajerosFiltro === item.value}
+                      onChange={(e) => setPasajerosFiltro(e.target.value)}
+                      className="accent-orange-500"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. Filtro por Categoría */}
+            <div className="space-y-2 border-t pt-4">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Categoría
               </label>
@@ -234,7 +357,7 @@ function DisponibilidadContent() {
               </div>
             </div>
 
-            {/* Filtro por Transmisión */}
+            {/* 4. Filtro por Transmisión */}
             <div className="space-y-2 border-t pt-4">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Transmisión
@@ -269,8 +392,8 @@ function DisponibilidadContent() {
 
         {/* Listado de Resultados */}
         <section className="lg:col-span-3 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold tracking-tight">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-card border border-border shadow-sm">
+            <h2 className="text-lg font-bold tracking-tight">
               Autos Disponibles{' '}
               {!loading && data && (
                 <span className="text-muted-foreground text-sm font-normal">
@@ -278,6 +401,23 @@ function DisponibilidadContent() {
                 </span>
               )}
             </h2>
+
+            {/* Selector de Ordenamiento */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                <ArrowUpDown className="h-3.5 w-3.5 text-orange-500" /> Ordenar:
+              </span>
+              <Select value={ordenFiltro} onValueChange={setOrdenFiltro}>
+                <SelectTrigger className="h-9 text-xs w-48">
+                  <SelectValue placeholder="Ordenar por" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="precio_asc">Precio: menor a mayor</SelectItem>
+                  <SelectItem value="precio_desc">Precio: mayor a menor</SelectItem>
+                  <SelectItem value="pasajeros_desc">Mayor capacidad</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {loading && (
@@ -301,16 +441,13 @@ function DisponibilidadContent() {
             <div className="text-center py-20 px-4 rounded-xl border border-dashed border-border bg-card space-y-4">
               <Car className="h-14 w-14 mx-auto text-muted-foreground/30" />
               <div>
-                <h3 className="text-lg font-bold">No hay vehículos disponibles para estas fechas</h3>
+                <h3 className="text-lg font-bold">No hay vehículos disponibles con los filtros aplicados</h3>
                 <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-                  Prueba seleccionando otras fechas o una sucursal alternativa como el Aeropuerto SDQ o Centro Piantini.
+                  Prueba ampliando los rangos de precio o seleccionando otras categorías de vehículos.
                 </p>
               </div>
               <Button
-                onClick={() => {
-                  setCategoriaFiltro('all')
-                  setTransmisionFiltro('all')
-                }}
+                onClick={limpiarTodosLosFiltros}
                 variant="outline"
               >
                 Limpiar filtros

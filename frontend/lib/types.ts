@@ -37,6 +37,20 @@ export interface VehiculoAPI {
   estado: string        // 'DISPONIBLE' | 'RESERVADO' | 'VENDIDO' | 'BORRADOR' | 'PENDIENTE_VALIDACION'
   publicado_en?: string
   imagenes: VehiculoImagenAPI[]
+  disponible_para?: string
+  pasajeros?: number
+  maletas_grandes?: number
+  maletas_pequenas?: number
+  tiene_aire_acondicionado?: boolean
+  tarifa_renta?: {
+    precio_dia_base: number
+    precio_semana_estimado?: number
+    deposito_garantia: number
+    moneda: string
+    kilometraje_incluido?: string
+    politica_combustible?: string
+    activo?: boolean
+  }
 }
 
 // ============================================================
@@ -71,6 +85,19 @@ export interface Vehicle {
     lat: number
     lng: number
   }
+  disponible_para?: 'VENTA' | 'RENTA' | 'AMBOS'
+  pasajeros?: number
+  maletas_grandes?: number
+  maletas_pequenas?: number
+  tiene_aire_acondicionado?: boolean
+  tarifa_renta?: {
+    precio_dia_base: number
+    precio_semana_estimado: number
+    deposito_garantia: number
+    moneda: string
+    kilometraje_incluido: string
+    politica_combustible: string
+  }
 }
 
 // ============================================================
@@ -94,6 +121,9 @@ export function toVehicle(v: VehiculoAPI): Vehicle {
   const transmision = v.transmision === 'AUTOMATICA' ? 'automatico'
     : v.transmision?.toLowerCase() ?? 'automatico'
 
+  const diaBase = v.tarifa_renta?.precio_dia_base ?? 45
+  const semanaBase = v.tarifa_renta?.precio_semana_estimado ?? Math.round(diaBase * 6)
+
   return {
     id:              String(v.id),
     modeloId:        v.modelo?.id ?? 0,
@@ -110,12 +140,25 @@ export function toVehicle(v: VehiculoAPI): Vehicle {
     caracteristicas: [],          // no existe en schema actual — array vacío
     imagenes:        imagenes.length > 0 ? imagenes : ['/placeholder.jpg'],
     estado:          ESTADO_MAP[v.estado] ?? 'disponible',
-    destacado:       v.estado === 'DISPONIBLE',
-    fechaPublicacion: v.publicado_en ?? new Date().toISOString(),
+    destacado:       false,
+    fechaPublicacion: v.publicado_en ? v.publicado_en.split('T')[0] : new Date().toISOString().split('T')[0],
     ubicacion: {
-      direccion: process.env.NEXT_PUBLIC_BUSINESS_ADDRESS ?? 'Prol. Av. 27 de Febrero 467, Santo Domingo',
-      lat: 18.463905,
-      lng: -69.993384,
+      direccion: process.env.NEXT_PUBLIC_BUSINESS_ADDRESS || 'Santo Domingo, República Dominicana',
+      lat:       parseFloat(process.env.NEXT_PUBLIC_DEALER_LAT || '18.4861'),
+      lng:       parseFloat(process.env.NEXT_PUBLIC_DEALER_LNG || '-69.9312'),
+    },
+    disponible_para: (v.disponible_para as 'VENTA' | 'RENTA' | 'AMBOS') || 'AMBOS',
+    pasajeros:       v.pasajeros ?? 5,
+    maletas_grandes: v.maletas_grandes ?? 2,
+    maletas_pequenas: v.maletas_pequenas ?? 2,
+    tiene_aire_acondicionado: v.tiene_aire_acondicionado ?? true,
+    tarifa_renta: {
+      precio_dia_base: diaBase,
+      precio_semana_estimado: semanaBase,
+      deposito_garantia: v.tarifa_renta?.deposito_garantia ?? 500,
+      moneda: v.tarifa_renta?.moneda ?? 'USD',
+      kilometraje_incluido: v.tarifa_renta?.kilometraje_incluido ?? 'ILIMITADO',
+      politica_combustible: v.tarifa_renta?.politica_combustible ?? 'LLENO_A_LLENO',
     },
   }
 }
@@ -197,6 +240,10 @@ export interface VehiculoFilters {
   transmision?: string
   precio_min?: number
   precio_max?: number
+  precio_dia_min?: number
+  precio_dia_max?: number
+  disponible_para?: string
+  orden?: string
   tipo?: string
   kilometraje_max?: number
   busqueda?: string

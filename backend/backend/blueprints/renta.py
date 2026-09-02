@@ -157,8 +157,25 @@ def consultar_disponibilidad():
     if request.args.get("pasajeros"):
         pax = pol.parse_int(request.args.get("pasajeros"), "pasajeros", minimo=1, maximo=20)
         q = q.filter(Vehiculo.pasajeros >= pax)
+    if request.args.get("maletas"):
+        mal = pol.parse_int(request.args.get("maletas"), "maletas", minimo=1, maximo=10)
+        q = q.filter(Vehiculo.maletas_grandes >= mal)
+    if request.args.get("precio_min"):
+        p_min = float(pol.parse_decimal(request.args.get("precio_min"), "precio_min", minimo=0))
+        q = q.filter(TarifaRenta.precio_dia_base >= p_min)
+    if request.args.get("precio_max"):
+        p_max = float(pol.parse_decimal(request.args.get("precio_max"), "precio_max", minimo=0))
+        q = q.filter(TarifaRenta.precio_dia_base <= p_max)
 
-    vehiculos = q.order_by(TarifaRenta.precio_dia_base.asc()).all()
+    orden = request.args.get("orden", "precio_asc")
+    if orden == "precio_desc":
+        criterio_orden = TarifaRenta.precio_dia_base.desc()
+    elif orden == "pasajeros_desc":
+        criterio_orden = Vehiculo.pasajeros.desc()
+    else:
+        criterio_orden = TarifaRenta.precio_dia_base.asc()
+
+    vehiculos = q.order_by(criterio_orden).all()
 
     items = []
     for v in vehiculos:

@@ -46,7 +46,13 @@ const fmt = (n: number) =>
 
 const fmtKm = (n: number) => new Intl.NumberFormat('es-DO').format(n)
 
-export function GroupedVehicleCard({ group }: { group: GroupedVehicle }) {
+export function GroupedVehicleCard({
+  group,
+  mode = 'renta',
+}: {
+  group: GroupedVehicle
+  mode?: 'renta' | 'venta' | 'ambos'
+}) {
   const [selectedYear, setSelectedYear] = useState(group.yearsAvailable[0])
 
   const unitsForYear = group.units.filter(u => u.año === selectedYear)
@@ -54,6 +60,13 @@ export function GroupedVehicleCard({ group }: { group: GroupedVehicle }) {
     u.precio < cheapest.precio ? u : cheapest, unitsForYear[0])
   const minPrice = Math.min(...unitsForYear.map(u => u.precio))
   const multipleUnits = unitsForYear.length > 1
+
+  const minTarifaDia = Math.min(
+    ...unitsForYear.map(u => u.tarifa_renta?.precio_dia_base ?? 45)
+  )
+  const minTarifaSemana = Math.min(
+    ...unitsForYear.map(u => u.tarifa_renta?.precio_semana_estimado ?? Math.round(minTarifaDia * 6))
+  )
 
   const [imgSrc, setImgSrc] = useState(() =>
     getVehicleImageUrl(group.modelo, Number(representative.id), representative.imagenes[0])
@@ -66,8 +79,10 @@ export function GroupedVehicleCard({ group }: { group: GroupedVehicle }) {
     setImgSrc(getVehicleImageUrl(group.modelo, Number(newRep.id), newRep.imagenes[0]))
   }
 
+  const esModoRenta = mode === 'renta' || mode === 'ambos'
+
   return (
-    <article className="group flex flex-col overflow-hidden rounded-xl border border-border/40 bg-card shadow-sm transition-shadow duration-300 hover:shadow-md">
+    <article className="group flex flex-col overflow-hidden rounded-xl border border-border/40 bg-card shadow-sm transition-all duration-300 hover:shadow-lg hover:border-orange-500/40">
 
       {/* Imagen */}
       <Link href={`/modelo/${group.modeloId}`} className="relative block aspect-[16/10] overflow-hidden bg-muted">
@@ -79,18 +94,21 @@ export function GroupedVehicleCard({ group }: { group: GroupedVehicle }) {
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           onError={() => setImgSrc(FALLBACK_VEHICLE_IMAGE)}
         />
-        {group.totalUnits > 1 && (
-          <span className="absolute left-3 top-3 rounded-full bg-orange-500 px-2.5 py-0.5 text-xs font-bold text-white">
-            {group.totalUnits} unidades
+        <div className="absolute left-3 top-3 flex items-center gap-1.5">
+          <span className="rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider bg-black/75 text-white backdrop-blur-sm border border-white/10">
+            {group.tipo}
           </span>
-        )}
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-orange-500 text-white">
+            {group.totalUnits} {group.totalUnits === 1 ? 'unidad' : 'unidades'}
+          </span>
+        </div>
       </Link>
 
       {/* Cuerpo */}
       <div className="flex flex-1 flex-col p-4">
 
         {/* Título */}
-        <Link href={`/modelo/${group.modeloId}`} className="mb-1 block">
+        <Link href={`/modelo/${group.modeloId}`} className="mb-2 block">
           <h3 className="truncate text-base font-bold text-foreground group-hover:text-orange-500 transition-colors">
             {group.marca} {group.modelo}
           </h3>
@@ -103,7 +121,7 @@ export function GroupedVehicleCard({ group }: { group: GroupedVehicle }) {
               <button
                 key={year}
                 onClick={() => handleYearClick(year)}
-                className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors min-h-[32px]"
+                className="rounded-full border px-3 py-1 text-xs font-semibold transition-colors min-h-[30px]"
                 style={year === selectedYear
                   ? { background: '#FF5500', color: '#fff', borderColor: '#FF5500' }
                   : { borderColor: 'hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }
@@ -117,14 +135,46 @@ export function GroupedVehicleCard({ group }: { group: GroupedVehicle }) {
           <p className="mb-2 text-xs text-muted-foreground">Año {selectedYear}</p>
         )}
 
-        {/* Precio */}
-        <p className="mb-1 text-xl font-black" style={{ color: '#FF5500' }}>
-          {multipleUnits ? `Desde ${fmt(minPrice)}` : fmt(representative.precio)}
-        </p>
-        {multipleUnits && (
-          <p className="mb-2 text-xs text-muted-foreground">
-            {unitsForYear.length} unidades disponibles en {selectedYear}
-          </p>
+        {/* Sección Precios según Modo */}
+        {esModoRenta ? (
+          <div className="mb-3 p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20 space-y-1">
+            <div className="flex items-baseline justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-orange-600 dark:text-orange-400 block">
+                  Renta diaria desde
+                </span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-black text-orange-600 dark:text-orange-400">
+                    ${minTarifaDia.toFixed(0)}
+                  </span>
+                  <span className="text-xs font-bold text-muted-foreground uppercase">
+                    USD / día
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <span className="text-[10px] text-muted-foreground block">Semanal</span>
+                <span className="text-xs font-bold text-foreground">
+                  ${minTarifaSemana.toFixed(0)} USD
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-1 text-[11px] text-muted-foreground flex justify-between border-t border-orange-500/15">
+              <span>Km Ilimitado en RD</span>
+              <span>O compra: <strong>{multipleUnits ? `Desde ${fmt(minPrice)}` : fmt(representative.precio)}</strong></span>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-3">
+            <p className="mb-1 text-xl font-black" style={{ color: '#FF5500' }}>
+              {multipleUnits ? `Desde ${fmt(minPrice)}` : fmt(representative.precio)}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Disponible en renta desde: <strong className="text-foreground">${minTarifaDia.toFixed(0)} USD / día</strong>
+            </p>
+          </div>
         )}
 
         {/* Specs */}
@@ -151,10 +201,10 @@ export function GroupedVehicleCard({ group }: { group: GroupedVehicle }) {
         <div className="mt-auto">
           <Link href={`/modelo/${group.modeloId}`}>
             <Button
-              className="w-full rounded-lg font-bold tracking-wide"
+              className="w-full rounded-lg font-bold tracking-wide hover:scale-[1.02] transition-transform"
               style={{ background: '#FF5500', color: '#fff', border: 'none' }}
             >
-              Ver detalles
+              {esModoRenta ? 'Cotizar Renta / Ver Unidades' : 'Ver detalles'}
             </Button>
           </Link>
         </div>

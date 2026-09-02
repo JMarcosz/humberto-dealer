@@ -5,7 +5,7 @@ from flask_login import current_user
 from sqlalchemy import and_
 from sqlalchemy.orm import joinedload, selectinload
 
-from ..models import db, Marca, Modelo, Vehiculo, Resena, ResenaLike
+from ..models import db, Marca, Modelo, Vehiculo, Resena, ResenaLike, TarifaRenta
 from ..decorators import login_required_api
 from backend import cache, limiter
 
@@ -61,7 +61,8 @@ def listar_modelos_por_marca(marca_id: int):
 # ---------------------------------------------------------------
 # GET /api/catalogo/vehiculos
 # Query params: marca_id, modelo_id, anio, combustible, transmision,
-#               precio_min, precio_max, estado, page, per_page
+#               precio_min, precio_max, precio_dia_min, precio_dia_max,
+#               disponible_para, orden, estado, page, per_page
 # ---------------------------------------------------------------
 @bp.get("/vehiculos")
 def listar_vehiculos():
@@ -70,6 +71,10 @@ def listar_vehiculos():
         per_page = request.args.get("per_page", 20, type=int)
 
         filtros = [Vehiculo.estado.in_(ESTADOS_PUBLICOS)]
+
+        disponible_para = request.args.get("disponible_para", "").upper()
+        if disponible_para in ("RENTA", "VENTA"):
+            filtros.append(Vehiculo.disponible_para.in_([disponible_para, "AMBOS"]))
 
         if (marca_id := request.args.get("marca_id", type=int)):
             filtros.append(Vehiculo.modelo.has(marca_id=marca_id))
@@ -90,24 +95,57 @@ def listar_vehiculos():
         if (km_max := request.args.get("kilometraje_max", type=int)):
             filtros.append(Vehiculo.kilometraje <= km_max)
 
+        precio_dia_min = request.args.get("precio_dia_min", type=float)
+        precio_dia_max = request.args.get("precio_dia_max", type=float)
+        requiere_tarifa = bool(precio_dia_min is not None or precio_dia_max is not None)
+
+        if precio_dia_min is not None:
+            filtros.append(TarifaRenta.precio_dia_base >= precio_dia_min)
+        if precio_dia_max is not None:
+            filtros.append(TarifaRenta.precio_dia_base <= precio_dia_max)
+
         busqueda = request.args.get("busqueda", "").strip()
         q = (
             Vehiculo.query
             .join(Modelo)
             .join(Marca)
-            .options(
-                joinedload(Vehiculo.modelo).joinedload(Modelo.marca),
-                selectinload(Vehiculo.imagenes),
-            )
-            .filter(and_(*filtros))
         )
+        if requiere_tarifa or disponible_para == "RENTA":
+            q = q.outerjoin(TarifaRenta, TarifaRenta.vehiculo_id == Vehiculo.id)
+
+        q = q.options(
+            joinedload(Vehiculo.modelo).joinedload(Modelo.marca),
+            joinedload(Vehiculo.tarifa_renta),
+            selectinload(Vehiculo.imagenes),
+        ).filter(and_(*filtros))
+
         if busqueda:
             like = f"%{busqueda}%"
-            q = q.filter(db.or_(Marca.nombre.ilike(like), Modelo.nombre.ilike(like)))
+            condiciones_busqueda = [
+                Marca.nombre.ilike(like),
+                Modelo.nombre.ilike(like),
+                Vehiculo.color.ilike(like)
+            ]
+            if busqueda.isdigit():
+                condiciones_busqueda.append(Vehiculo.anio == int(busqueda))
+            q = q.filter(db.or_(*condiciones_busqueda))
+
+        # Criterio de ordenamiento dinámico
+        orden = request.args.get("orden", "recientes")
+        if orden == "precio_asc":
+            criterio_orden = TarifaRenta.precio_dia_base.asc() if (disponible_para == "RENTA" or requiere_tarifa) else Vehiculo.precio.asc()
+        elif orden == "precio_desc":
+            criterio_orden = TarifaRenta.precio_dia_base.desc() if (disponible_para == "RENTA" or requiere_tarifa) else Vehiculo.precio.desc()
+        elif orden == "anio_desc":
+            criterio_orden = Vehiculo.anio.desc()
+        elif orden == "kilometraje_asc":
+            criterio_orden = Vehiculo.kilometraje.asc()
+        else:
+            criterio_orden = Vehiculo.publicado_en.desc()
 
         paginado = (
             q
-            .order_by(Vehiculo.publicado_en.desc())
+            .order_by(criterio_orden)
             .paginate(page=page, per_page=min(per_page, 200), error_out=False)
         )
 

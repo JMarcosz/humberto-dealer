@@ -434,6 +434,10 @@ class ApiClient {
     categoria?: string
     transmision?: string
     pasajeros?: number
+    maletas?: number
+    precio_min?: number
+    precio_max?: number
+    orden?: string
   }): Promise<DisponibilidadRentaResponse> {
     const query = new URLSearchParams()
     Object.entries(params).forEach(([key, value]) => {

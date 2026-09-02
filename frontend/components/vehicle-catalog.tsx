@@ -8,7 +8,7 @@ import { toVehicle, type Vehicle } from '@/lib/types'
 import { useMarcas } from '@/lib/queries'
 import { GroupedVehicleCard, groupVehicles, type GroupedVehicle } from '@/components/grouped-vehicle-card'
 import { VehicleFilters, type VehicleFilterValues } from '@/components/vehicle-filters'
-import { Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Loader2, X, ChevronLeft, ChevronRight, Car, Tag, Sparkles, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const GROUPS_PER_PAGE = 12
@@ -80,6 +80,7 @@ export function VehicleCatalog() {
 
   const [filters, setFilters] = useState<VehicleFilterValues>({})
   const [page,    setPage]    = useState(1)
+  const [modalidad, setModalidad] = useState<'renta' | 'venta'>('renta')
 
   const marcaIdParam     = searchParams.get('marca_id')
   const marcaNombreParam = searchParams.get('marca_nombre')
@@ -94,6 +95,12 @@ export function VehicleCatalog() {
     anio:            filters.anio,
     precio_min:      filters.precioMin,
     precio_max:      filters.precioMax,
+    precio_dia_min:  filters.precioDiaMin,
+    precio_dia_max:  filters.precioDiaMax,
+    disponible_para: modalidad.toUpperCase(),
+    transmision:     filters.transmision,
+    combustible:     filters.combustible,
+    orden:           filters.orden,
     tipo:            filters.tipo,
     kilometraje_max: filters.kilometrajeMax,
     busqueda:        filters.busqueda,
@@ -109,12 +116,16 @@ export function VehicleCatalog() {
   const allUnits: Vehicle[] = useMemo(() => {
     if (!vehiculosData) return []
     const vehicles = vehiculosData.items.map(toVehicle)
-    return [...vehicles].sort((a, b) => {
-      if (a.destacado && !b.destacado) return -1
-      if (!a.destacado && b.destacado) return 1
-      return new Date(b.fechaPublicacion).getTime() - new Date(a.fechaPublicacion).getTime()
-    })
-  }, [vehiculosData])
+    // Si no hay orden explícito de precio/año, destacar y ordenar por fecha
+    if (!filters.orden || filters.orden === 'recientes') {
+      return [...vehicles].sort((a, b) => {
+        if (a.destacado && !b.destacado) return -1
+        if (!a.destacado && b.destacado) return 1
+        return new Date(b.fechaPublicacion).getTime() - new Date(a.fechaPublicacion).getTime()
+      })
+    }
+    return vehicles
+  }, [vehiculosData, filters.orden])
 
   const groups: GroupedVehicle[] = useMemo(() => groupVehicles(allUnits), [allUnits])
 
@@ -151,6 +162,51 @@ export function VehicleCatalog() {
 
   return (
     <div className="py-4">
+      {/* ── Selector de Modalidad: Renta vs Venta ── */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 p-3 rounded-2xl bg-muted/40 border border-border/60">
+        <div className="flex items-center gap-1.5 p-1 bg-background rounded-xl border border-border shadow-sm">
+          <button
+            type="button"
+            onClick={() => setModalidad('renta')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
+              modalidad === 'renta'
+                ? 'bg-orange-500 text-white shadow-md'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Car className="h-4 w-4" />
+            <span>Renta de Autos (Tarifas por día / semana)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setModalidad('venta')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
+              modalidad === 'venta'
+                ? 'bg-orange-500 text-white shadow-md'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Tag className="h-4 w-4" />
+            <span>Venta de Autos (Compra)</span>
+          </button>
+        </div>
+
+        {modalidad === 'renta' ? (
+          <div className="flex items-center gap-4 text-xs font-semibold text-muted-foreground">
+            <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+              <ShieldCheck className="h-4 w-4" /> Seguro TPL incluido
+            </span>
+            <span className="flex items-center gap-1.5 text-orange-600 dark:text-orange-400">
+              <Sparkles className="h-4 w-4" /> Kilometraje ilimitado en RD
+            </span>
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground font-medium">
+            Vehículos verificados con garantía directa
+          </div>
+        )}
+      </div>
+
       {marcaIdParam && marcaNombreParam && (
         <div className="mb-6 flex items-center justify-between rounded-lg border border-orange-500/30 bg-orange-500/5 px-4 py-3">
           <p className="text-sm">
@@ -163,7 +219,7 @@ export function VehicleCatalog() {
       )}
 
       <div className="mb-8">
-        <VehicleFilters marcas={marcas} onFilterChange={handleFilterChange} />
+        <VehicleFilters marcas={marcas} onFilterChange={handleFilterChange} mode={modalidad} />
       </div>
 
       <div className="mb-6 flex items-center justify-between">
@@ -183,7 +239,9 @@ export function VehicleCatalog() {
       {!loading && visibleGroups.length > 0 ? (
         <>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleGroups.map(g => <GroupedVehicleCard key={g.modeloId} group={g} />)}
+            {visibleGroups.map(g => (
+              <GroupedVehicleCard key={g.modeloId} group={g} mode={modalidad} />
+            ))}
           </div>
           <Paginator page={page} totalPages={totalPages} onChange={handlePageChange} />
         </>

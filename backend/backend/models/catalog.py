@@ -110,6 +110,33 @@ class Vehiculo(db.Model):
     tarifa_renta = db.relationship("TarifaRenta", back_populates="vehiculo", uselist=False, cascade="all, delete-orphan")
     reservas_renta = db.relationship("ReservaRenta", back_populates="vehiculo", lazy="dynamic")
 
+    def _get_tarifa_renta_dict(self) -> dict:
+        if self.tarifa_renta and self.tarifa_renta.activo:
+            t = self.tarifa_renta.to_dict()
+            dia = float(t.get("precio_dia_base", 45.0))
+            t["precio_semana_estimado"] = round(dia * 6, 2)
+            return t
+
+        cat = (self.modelo.categoria if self.modelo else "SEDAN") or "SEDAN"
+        tarifas_defecto = {
+            "SEDAN": 40.0,
+            "SUV": 55.0,
+            "PICKUP": 70.0,
+            "VAN": 75.0,
+            "COUPE": 60.0,
+            "CONVERTIBLE": 85.0,
+        }
+        dia = tarifas_defecto.get(cat.upper(), 45.0)
+        return {
+            "precio_dia_base": dia,
+            "precio_semana_estimado": round(dia * 6, 2),
+            "deposito_garantia": 500.0,
+            "moneda": "USD",
+            "kilometraje_incluido": "ILIMITADO",
+            "politica_combustible": "LLENO_A_LLENO",
+            "activo": True,
+        }
+
     def to_dict(self, include_imagenes: bool = True) -> dict:
         data = {
             "id": self.id,
@@ -128,10 +155,9 @@ class Vehiculo(db.Model):
             "maletas_grandes": self.maletas_grandes,
             "maletas_pequenas": self.maletas_pequenas,
             "tiene_aire_acondicionado": self.tiene_aire_acondicionado,
+            "tarifa_renta": self._get_tarifa_renta_dict(),
             "publicado_en": self.publicado_en.isoformat() if self.publicado_en else None,
         }
-        if self.tarifa_renta and self.tarifa_renta.activo:
-            data["tarifa_renta"] = self.tarifa_renta.to_dict()
         if include_imagenes:
             data["imagenes"] = [img.to_dict() for img in self.imagenes]
         return data
@@ -164,11 +190,10 @@ class Vehiculo(db.Model):
             "maletas_grandes": self.maletas_grandes,
             "maletas_pequenas": self.maletas_pequenas,
             "tiene_aire_acondicionado": self.tiene_aire_acondicionado,
+            "tarifa_renta": self._get_tarifa_renta_dict(),
             "publicado_en": self.publicado_en.isoformat() if self.publicado_en else None,
             "imagenes":    [img.to_dict() for img in self.imagenes],
         }
-        if self.tarifa_renta and self.tarifa_renta.activo:
-            data["tarifa_renta"] = self.tarifa_renta.to_dict()
         return data
 
 

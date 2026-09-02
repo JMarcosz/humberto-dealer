@@ -6,6 +6,7 @@ import { Footer } from '@/components/footer'
 import { ImageGallery } from '@/components/image-gallery'
 import { ReviewSection } from '@/components/review-section'
 import { VehicleActions } from '@/components/vehicle-actions'
+import { VehicleRentalCalculator } from '@/components/vehicle-rental-calculator'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -250,14 +251,32 @@ export default async function VehiclePage({ params }: PageProps) {
                 </div>
               </div>
 
+              {/* ── Cotizador de Alquiler / Renta de Autos ── */}
+              {vehicle.estado !== 'vendido' && (
+                <div className="space-y-2">
+                  <VehicleRentalCalculator vehicle={vehicle} />
+                </div>
+              )}
+
               <Separator />
 
-              {/* Botones de acción (client component con lógica real) */}
-              <VehicleActions
-                vehicleId={id}
-                whatsappUrl={whatsappUrl}
-                estado={vehicle.estado}
-              />
+              {/* ── Opciones de Compraventa Directa ── */}
+              <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    ¿Interesado en comprar este vehículo?
+                  </span>
+                  <span className="text-xl font-black text-foreground">
+                    {formatPrice(vehicle.precio)}
+                  </span>
+                </div>
+                {/* Botones de acción (client component con lógica real) */}
+                <VehicleActions
+                  vehicleId={id}
+                  whatsappUrl={whatsappUrl}
+                  estado={vehicle.estado}
+                />
+              </div>
 
               {/* Botones de navegación */}
               <div className="grid grid-cols-2 gap-3">
