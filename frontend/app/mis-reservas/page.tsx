@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/dialog'
 import { Loader2, Car, Calendar, ArrowLeft, XCircle } from 'lucide-react'
 import { formatDate } from '@/lib/format'
+import { Header } from '@/components/header'
+import { Footer } from '@/components/footer'
 
 const ESTADO_STYLES: Record<string, { label: string; className: string }> = {
   EN_PROCESO:  { label: 'Activa',     className: 'bg-green-500/10 text-green-600 border-green-500/20' },
@@ -59,14 +61,20 @@ export default function MisReservasPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      <div className="min-h-screen flex flex-col bg-background">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        </main>
+        <Footer />
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto max-w-2xl px-4 py-10 space-y-6">
+    <div className="min-h-screen flex flex-col bg-background">
+      <Header />
+      <main className="flex-1 container mx-auto max-w-2xl px-4 py-10 space-y-6">
       {/* Encabezado */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => router.push('/')}>
@@ -175,6 +183,8 @@ export default function MisReservasPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </main>
+      <Footer />
     </div>
   )
 }

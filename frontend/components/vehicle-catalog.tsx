@@ -150,7 +150,7 @@ export function VehicleCatalog() {
   const clearMarcaFilter = () => router.push(pathname)
 
   return (
-    <section id="catalogo-section" className="py-8">
+    <div className="py-4">
       {marcaIdParam && marcaNombreParam && (
         <div className="mb-6 flex items-center justify-between rounded-lg border border-orange-500/30 bg-orange-500/5 px-4 py-3">
           <p className="text-sm">
@@ -196,6 +196,6 @@ export function VehicleCatalog() {
           <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
         </div>
       )}
-    </section>
+    </div>
   )
 }

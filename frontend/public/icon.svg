@@ -1,26 +1,62 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <style>
-    @media (prefers-color-scheme: light) {
-      .background { fill: black; }
-      .foreground { fill: white; }
-    }
-    @media (prefers-color-scheme: dark) {
-      .background { fill: white; }
-      .foreground { fill: black; }
-    }
-  </style>
-  <g clip-path="url(#clip0_7960_43945)">
-    <rect class="background" width="180" height="180" rx="37" />
-    <g style="transform: scale(95%); transform-origin: center">
-      <path class="foreground"
-        d="M101.141 53H136.632C151.023 53 162.689 64.6662 162.689 79.0573V112.904H148.112V79.0573C148.112 78.7105 148.098 78.3662 148.072 78.0251L112.581 112.898C112.701 112.902 112.821 112.904 112.941 112.904H148.112V126.672H112.941C98.5504 126.672 86.5638 114.891 86.5638 100.5V66.7434H101.141V100.5C101.141 101.15 101.191 101.792 101.289 102.422L137.56 66.7816C137.255 66.7563 136.945 66.7434 136.632 66.7434H101.141V53Z" />
-      <path class="foreground"
-        d="M65.2926 124.136L14 66.7372H34.6355L64.7495 100.436V66.7372H80.1365V118.47C80.1365 126.278 70.4953 129.958 65.2926 124.136Z" />
-    </g>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
-    <clipPath id="clip0_7960_43945">
-      <rect width="180" height="180" fill="white" />
-    </clipPath>
+    <radialGradient id="bg-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#141923" />
+      <stop offset="100%" stop-color="#080c14" />
+    </radialGradient>
+    <linearGradient id="orange-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF7700" />
+      <stop offset="100%" stop-color="#FF4400" />
+    </linearGradient>
+    <linearGradient id="car-metallic" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="60%" stop-color="#E2E8F0" />
+      <stop offset="100%" stop-color="#94A3B8" />
+    </linearGradient>
   </defs>
+
+  <!-- Base Circle Background -->
+  <circle cx="256" cy="256" r="248" fill="url(#bg-glow)" />
+
+  <!-- Outer Orange Rings -->
+  <circle cx="256" cy="256" r="240" fill="none" stroke="url(#orange-grad)" stroke-width="14" />
+  <circle cx="256" cy="256" r="226" fill="none" stroke="#FFFFFF" stroke-opacity="0.15" stroke-width="2" />
+
+  <!-- Car Roof & Windshield Outline -->
+  <path d="M120 250 C140 210, 190 170, 256 170 C322 170, 372 210, 392 250 C370 235, 330 220, 256 220 C182 220, 142 235, 120 250 Z" 
+        fill="url(#car-metallic)" />
+  
+  <!-- Windshield Center Streak (aerodynamic reflection) -->
+  <path d="M246 175 C252 175, 254 185, 250 200 C246 215, 240 220, 245 220 C250 220, 260 215, 268 200 C274 188, 270 175, 266 175 Z"
+        fill="#080c14" />
+
+  <!-- Headlights / Aerodynamic Wing lines -->
+  <path d="M100 242 C120 236, 145 242, 160 252 C135 258, 115 258, 100 242 Z" fill="#FFFFFF" />
+  <path d="M412 242 C392 236, 367 242, 352 252 C377 258, 397 258, 412 242 Z" fill="#FFFFFF" />
+
+  <!-- Front Bumper / Air Intakes -->
+  <path d="M110 270 C160 305, 220 310, 256 310 C292 310, 352 305, 402 270 C360 292, 300 298, 256 298 C212 298, 152 292, 110 270 Z" 
+        fill="url(#orange-grad)" />
+
+  <!-- HUMBERTO wordmark in SVG -->
+  <text x="256" y="365" 
+        font-family="system-ui, -apple-system, sans-serif" 
+        font-weight="900" 
+        font-style="italic"
+        font-size="52" 
+        fill="url(#orange-grad)" 
+        text-anchor="middle" 
+        letter-spacing="2">HUMBERTO</text>
+
+  <!-- AUTO IMPORT wordmark in SVG -->
+  <text x="256" y="405" 
+        font-family="system-ui, -apple-system, sans-serif" 
+        font-weight="800" 
+        font-size="22" 
+        fill="#FFFFFF" 
+        text-anchor="middle" 
+        letter-spacing="9">AUTO IMPORT</text>
+
+  <!-- Subtitle accent -->
+  <line x1="160" y1="425" x2="352" y2="425" stroke="#FF5500" stroke-width="3" stroke-linecap="round" />
 </svg>

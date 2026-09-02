@@ -270,7 +270,7 @@ export function RentalSearchWidget({
             />
           </div>
 
-          <div className="md:col-span-1">
+          <div className="sm:col-span-2 md:col-span-1">
             <Button
               type="submit"
               className="w-full h-12 text-base font-bold text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"

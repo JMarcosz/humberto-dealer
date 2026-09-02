@@ -192,11 +192,37 @@ def confirmar_venta():
         if not vid or not cid:
             return jsonify({"error": "vehiculo_id y cliente_id son obligatorios"}), 400
 
-        vehiculo = db.get_or_404(Vehiculo, int(vid))
-        cliente  = db.get_or_404(Cliente, int(cid))
+        # Bloqueo pesimista para evitar condición de carrera (TOCTOU)
+        vehiculo = (
+            Vehiculo.query
+            .filter_by(id=int(vid))
+            .with_for_update()
+            .first()
+        )
+        if not vehiculo:
+            return jsonify({"error": "Vehículo no encontrado"}), 404
+
+        cliente = db.get_or_404(Cliente, int(cid))
 
         if vehiculo.estado not in ("DISPONIBLE", "RESERVADO"):
             return jsonify({"error": "Vehículo no disponible para venta"}), 422
+
+        if vehiculo.disponible_para not in ("VENTA", "AMBOS"):
+            return jsonify({
+                "error": "Este vehículo está dedicado exclusivamente a renta.",
+                "codigo": "VEHICULO_NO_VENDIBLE",
+            }), 422
+
+        renta_futura = cal.tiene_rentas_futuras(vehiculo.id)
+        if renta_futura:
+            return jsonify({
+                "error": (
+                    f"No se puede vender: el vehículo tiene la renta "
+                    f"{renta_futura.pnr} vigente hasta "
+                    f"{renta_futura.fecha_fin.strftime('%d/%m/%Y')}."
+                ),
+                "codigo": "TIENE_RENTAS_FUTURAS",
+            }), 409
 
         venta = Venta(
             vehiculo_id    = vehiculo.id,
@@ -336,6 +362,41 @@ def editar_vehiculo(vid: int):
             return jsonify({"error": errores[0]}), 422
 
         v = db.get_or_404(Vehiculo, vid)
+
+        if "precio" in data:
+            try:
+                precio_val = float(data["precio"])
+                if precio_val <= 0:
+                    return jsonify({"error": "El precio debe ser un número positivo"}), 422
+                data["precio"] = precio_val
+            except (TypeError, ValueError):
+                return jsonify({"error": "Precio inválido"}), 422
+
+        if "kilometraje" in data:
+            try:
+                km_val = int(data["kilometraje"])
+                if km_val < 0:
+                    return jsonify({"error": "El kilometraje no puede ser negativo"}), 422
+                data["kilometraje"] = km_val
+            except (TypeError, ValueError):
+                return jsonify({"error": "Kilometraje inválido"}), 422
+
+        if "combustible" in data:
+            comb = str(data["combustible"]).upper().strip()
+            if comb not in {"GASOLINA", "DIESEL", "HIBRIDO", "ELECTRICO"}:
+                return jsonify({"error": "Tipo de combustible no válido"}), 422
+            data["combustible"] = comb
+
+        if "transmision" in data:
+            trans = str(data["transmision"]).upper().strip()
+            if trans not in {"AUTOMATICA", "MANUAL", "CVT"}:
+                return jsonify({"error": "Tipo de transmisión no válido"}), 422
+            data["transmision"] = trans
+
+        if "descripcion" in data and data["descripcion"]:
+            if len(str(data["descripcion"])) > 5000:
+                return jsonify({"error": "La descripción no puede exceder 5,000 caracteres"}), 422
+
         CAMPOS_EDITABLES = {
             "precio", "color", "kilometraje", "descripcion",
             "combustible", "transmision",

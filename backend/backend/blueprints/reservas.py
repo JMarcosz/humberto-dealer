@@ -8,6 +8,7 @@ from sqlalchemy.orm import joinedload
 from ..models import db, Vehiculo, Reserva, Cliente, Modelo, Marca
 from ..decorators import login_required_api
 from ..services.renta_calendario import tiene_rentas_futuras
+from backend import limiter
 
 bp  = Blueprint("reservas", __name__)
 log = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------
 @bp.post("/")
 @login_required_api
+@limiter.limit("10 per hour")
 def crear_reserva():
     try:
         data = request.get_json(silent=True) or {}
@@ -101,8 +103,11 @@ def crear_reserva():
 @login_required_api
 def cancelar_reserva(rid: int):
     try:
-        reserva  = db.get_or_404(Reserva, rid)
-        cliente  = Cliente.query.filter_by(usuario_id=current_user.id).first()
+        reserva = Reserva.query.filter_by(id=rid).with_for_update().first()
+        if not reserva:
+            return jsonify({"error": "Reserva no encontrada"}), 404
+
+        cliente = Cliente.query.filter_by(usuario_id=current_user.id).first()
 
         # Solo el dueño de la reserva o un admin puede cancelar
         if not current_user.is_admin and (not cliente or reserva.cliente_id != cliente.id):
@@ -111,10 +116,13 @@ def cancelar_reserva(rid: int):
         if reserva.estado != "EN_PROCESO":
             return jsonify({"error": "Solo se pueden cancelar reservas EN_PROCESO"}), 422
 
-        reserva.estado          = "CANCELADA"
-        reserva.vehiculo.estado = "DISPONIBLE"
-        db.session.commit()
+        reserva.estado = "CANCELADA"
+        if reserva.vehiculo:
+            vehiculo = Vehiculo.query.filter_by(id=reserva.vehiculo_id).with_for_update().first()
+            if vehiculo and vehiculo.estado == "RESERVADO":
+                vehiculo.estado = "DISPONIBLE"
 
+        db.session.commit()
         return jsonify({"mensaje": "Reserva cancelada"})
     except Exception as exc:
         db.session.rollback()

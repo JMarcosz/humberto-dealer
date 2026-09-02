@@ -10,6 +10,11 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
+        disallow: ['/admin/', '/api/', '/login', '/registro', '/mis-reservas'],
+      },
+      {
+        userAgent: ['GPTBot', 'PerplexityBot', 'ClaudeBot', 'Google-Extended', 'Applebot-Extended'],
+        allow: ['/', '/vehiculo/', '/nosotros', '/renta/'],
         disallow: ['/admin/', '/api/'],
       },
     ],

@@ -37,7 +37,7 @@ export function Footer() {
   const { data: user } = useCurrentUser()
 
   return (
-    <footer id="contacto" className="bg-[#0d0d0d] text-white">
+    <footer id="contacto" className="bg-[#0d0d0d] text-white scroll-mt-20">
       <div className="container mx-auto px-4 pt-14 pb-6">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
 

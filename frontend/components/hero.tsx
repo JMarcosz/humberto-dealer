@@ -24,7 +24,7 @@ export function Hero() {
 
   return (
     <section
-      className="relative flex min-h-[94vh] flex-col items-center justify-center overflow-hidden bg-black"
+      className="relative flex min-h-[72vh] md:min-h-[82vh] flex-col items-center justify-center overflow-hidden bg-black pt-8 pb-14 md:pb-20"
       aria-label="Hero"
     >
       {/* Grid perspectiva — solo CSS */}
@@ -51,7 +51,7 @@ export function Hero() {
 
         {/* Línea naranja superior — aparece primero */}
         <div
-          className="hero-line mb-10 h-px w-16 bg-orange-500"
+          className="hero-line mb-8 md:mb-10 h-px w-16 bg-orange-500"
           style={{ '--d': '0ms' } as React.CSSProperties}
           data-v={visible}
         />
@@ -59,14 +59,14 @@ export function Hero() {
         {/* Título principal — dos líneas enormes */}
         <h1
           className="hero-item font-black uppercase leading-none tracking-tighter text-white"
-          style={{ '--d': '100ms', fontSize: 'clamp(3rem, 10vw, 8rem)' } as React.CSSProperties}
+          style={{ '--d': '100ms', fontSize: 'clamp(2.75rem, 8vw, 7.5rem)' } as React.CSSProperties}
           data-v={visible}
         >
           HUMBERTO
         </h1>
         <h1
           className="hero-item font-black uppercase leading-none tracking-tighter"
-          style={{ '--d': '180ms', fontSize: 'clamp(3rem, 10vw, 8rem)', color: '#FF5500' } as React.CSSProperties}
+          style={{ '--d': '180ms', fontSize: 'clamp(2.75rem, 8vw, 7.5rem)', color: '#FF5500' } as React.CSSProperties}
           data-v={visible}
         >
           AUTO IMPORT
@@ -74,14 +74,14 @@ export function Hero() {
 
         {/* Línea naranja divisora — crece desde el centro */}
         <div
-          className="hero-line my-8 h-px bg-orange-500"
+          className="hero-line my-6 md:my-8 h-px bg-orange-500"
           style={{ '--d': '300ms', width: '100%', maxWidth: '480px' } as React.CSSProperties}
           data-v={visible}
         />
 
         {/* Marcas */}
         <p
-          className="hero-item text-sm font-bold uppercase tracking-[0.5em] text-white/50"
+          className="hero-item text-xs md:text-sm font-bold uppercase tracking-[0.4em] md:tracking-[0.5em] text-white/50"
           style={{ '--d': '380ms' } as React.CSSProperties}
           data-v={visible}
         >
@@ -90,7 +90,7 @@ export function Hero() {
 
         {/* Subtítulo */}
         <p
-          className="hero-item mt-4 max-w-md text-base text-white/35"
+          className="hero-item mt-3 md:mt-4 max-w-md text-sm md:text-base text-white/40"
           style={{ '--d': '460ms' } as React.CSSProperties}
           data-v={visible}
         >
@@ -99,37 +99,27 @@ export function Hero() {
 
         {/* CTAs */}
         <div
-          className="hero-item mt-10 flex flex-wrap justify-center gap-4"
+          className="hero-item mt-8 md:mt-10 flex flex-wrap justify-center gap-4"
           style={{ '--d': '560ms' } as React.CSSProperties}
           data-v={visible}
         >
           <Button
             size="lg"
             onClick={() => goTo('catalogo-section')}
-            className="rounded-none px-10 font-bold tracking-widest uppercase text-sm"
+            className="rounded-none px-8 md:px-10 font-bold tracking-widest uppercase text-sm shadow-lg shadow-orange-500/20"
             style={{ background: '#FF5500', color: '#fff', border: 'none' }}
           >
             Ver Catálogo
           </Button>
           <button
             onClick={() => goTo('marcas')}
-            className="hero-btn-outline px-10 py-3 text-sm font-bold tracking-widest uppercase text-white transition-colors duration-200"
+            className="hero-btn-outline px-8 md:px-10 py-3 text-sm font-bold tracking-widest uppercase text-white transition-colors duration-200"
             style={{ border: '1px solid rgba(255,255,255,0.2)', background: 'transparent' }}
           >
             Nuestras Marcas
           </button>
         </div>
       </div>
-
-      {/* Scroll indicator */}
-      <button
-        onClick={() => goTo('catalogo-section')}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/25 transition-colors hover:text-orange-500"
-        aria-label="Scroll al catálogo"
-      >
-        <span className="text-xs font-bold tracking-[0.4em] uppercase">Explorar</span>
-        <ChevronDown className="h-4 w-4 animate-bounce" />
-      </button>
 
       <style>{`
         .hero-grid {

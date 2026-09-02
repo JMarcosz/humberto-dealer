@@ -16,9 +16,10 @@ from .config import get_config
 from .models.base import db
 from .models.users import Usuario
 
+storage_uri   = os.getenv("REDIS_URL") or os.getenv("RATELIMIT_STORAGE_URI") or "memory://"
 bcrypt        = Bcrypt()
 login_manager = LoginManager()
-limiter       = Limiter(key_func=get_remote_address, default_limits=["200 per minute"])
+limiter       = Limiter(key_func=get_remote_address, storage_uri=storage_uri, default_limits=["200 per minute"])
 cache         = Cache()
 compress      = Compress()
 
@@ -86,17 +87,32 @@ def create_app(config_override: dict = None) -> Flask:
         from .services.whatsapp import start_followup_thread
         start_followup_thread(app)
 
-    # Protección CSRF por verificación de Origin en métodos mutables
+    # Protección CSRF por verificación de Origin y Referer en métodos mutables
     @app.before_request
     def verificar_csrf_origin():
         if request.method in ("POST", "PUT", "PATCH", "DELETE"):
             if request.path.startswith("/api/whatsapp"):
                 return
+            expected_frontend = app.config.get("FRONTEND_URL", "").rstrip("/")
             origin = request.headers.get("Origin")
+            referer = request.headers.get("Referer")
+
+            target_origin = None
             if origin:
-                expected_frontend = app.config["FRONTEND_URL"].rstrip("/")
-                if origin != expected_frontend:
+                target_origin = origin.rstrip("/")
+            elif referer:
+                from urllib.parse import urlparse
+                p = urlparse(referer)
+                target_origin = f"{p.scheme}://{p.netloc}".rstrip("/")
+
+            if target_origin:
+                if target_origin != expected_frontend:
                     return jsonify({"error": "Origen no autorizado"}), 403
+            else:
+                # Si ambos están ausentes en petición con cookie de sesión activa, denegar CSRF
+                session_cookie = app.config.get("SESSION_COOKIE_NAME", "session")
+                if not app.config.get("TESTING") and request.cookies.get(session_cookie):
+                    return jsonify({"error": "Petición rechazada: falta cabecera Origin o Referer"}), 403
 
     # Healthcheck para Docker / orquestadores (sin fuga de información)
     @app.route('/api/health')
@@ -108,11 +124,20 @@ def create_app(config_override: dict = None) -> Flask:
             logging.getLogger(__name__).error("Health check error: %s", e)
             return jsonify({"status": "unhealthy", "error": "Servicio no disponible"}), 503
 
-    # Servir archivos subidos (imágenes de vehículos)
+    # Servir archivos subidos: restringido a imágenes para evitar fuga de imports/
     @app.route('/api/uploads/<path:filename>')
     def serve_upload(filename):
+        norm_filename = os.path.normpath(filename).replace('\\', '/')
+        if norm_filename.startswith("imports") or ".." in norm_filename:
+            return jsonify({"error": "Acceso denegado"}), 403
+
+        allowed_exts = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+        ext = os.path.splitext(norm_filename)[1].lower()
+        if ext not in allowed_exts:
+            return jsonify({"error": "Tipo de archivo no permitido"}), 403
+
         upload_dir = app.config.get('UPLOAD_FOLDER', '/tmp')
-        return send_from_directory(os.path.join(upload_dir), filename)
+        return send_from_directory(upload_dir, norm_filename)
 
     # ── Headers de seguridad y caché en todas las respuestas ─────────────────
     @app.after_request

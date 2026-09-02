@@ -49,18 +49,45 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params
   const vehicle = await getVehiculoById(id)
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://humbertoautoimport.com'
 
   if (!vehicle) {
     return { title: 'Vehículo no encontrado | Humberto Auto Import' }
   }
 
+  const title = `${vehicle.marca} ${vehicle.modelo} ${vehicle.año} | Humberto Auto Import`
+  const description =
+    vehicle.descripcion ||
+    `Compra este ${vehicle.marca} ${vehicle.modelo} ${vehicle.año} en Humberto Auto Import. Garantía total, financiamiento disponible e importación directa en Santo Domingo, RD.`
+  const imageUrl = getVehicleImageUrl(vehicle.modelo, vehicle.id, vehicle.imagenes[0])
+  const vehicleUrl = `${baseUrl}/vehiculo/${vehicle.id}`
+
   return {
-    title: `${vehicle.marca} ${vehicle.modelo} ${vehicle.año} | Humberto Auto Import`,
-    description: vehicle.descripcion,
+    title,
+    description,
+    alternates: {
+      canonical: vehicleUrl,
+    },
     openGraph: {
-      title: `${vehicle.marca} ${vehicle.modelo} ${vehicle.año}`,
-      description: vehicle.descripcion,
-      images: vehicle.imagenes[0] ? [vehicle.imagenes[0]] : [],
+      title: `${vehicle.marca} ${vehicle.modelo} ${vehicle.año} en Venta | Humberto Auto Import`,
+      description,
+      url: vehicleUrl,
+      type: 'website',
+      siteName: 'Humberto Auto Import',
+      images: [
+        {
+          url: imageUrl,
+          width: 1200,
+          height: 630,
+          alt: `${vehicle.marca} ${vehicle.modelo} ${vehicle.año} - Humberto Auto Import`,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${vehicle.marca} ${vehicle.modelo} ${vehicle.año} | Humberto Auto Import`,
+      description,
+      images: [imageUrl],
     },
   }
 }
@@ -99,12 +126,60 @@ export default async function VehiclePage({ params }: PageProps) {
     pendiente_validacion: 'Pendiente'
   }
 
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://humbertoautoimport.com'
+  const vehicleMainImage = getVehicleImageUrl(vehicle.modelo, vehicle.id, vehicle.imagenes[0])
+  const vehicleGallery = vehicle.imagenes.length > 0
+    ? vehicle.imagenes.map(img => getVehicleImageUrl(vehicle.modelo, vehicle.id, img))
+    : [vehicleMainImage]
+
+  const vehicleSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Car',
+    name: `${vehicle.marca} ${vehicle.modelo} ${vehicle.año}`,
+    description: vehicle.descripcion || `${vehicle.marca} ${vehicle.modelo} ${vehicle.año} en venta en Humberto Auto Import.`,
+    image: vehicleGallery,
+    brand: {
+      '@type': 'Brand',
+      name: vehicle.marca,
+    },
+    model: vehicle.modelo,
+    vehicleModelDate: vehicle.año.toString(),
+    mileageFromOdometer: {
+      '@type': 'QuantitativeValue',
+      value: vehicle.kilometraje,
+      unitCode: 'KMT',
+    },
+    fuelType: vehicle.combustible,
+    vehicleTransmission: vehicle.transmision,
+    color: vehicle.color,
+    itemCondition: 'https://schema.org/UsedCondition',
+    offers: {
+      '@type': 'Offer',
+      price: vehicle.precio,
+      priceCurrency: 'DOP',
+      availability:
+        vehicle.estado === 'disponible'
+          ? 'https://schema.org/InStock'
+          : 'https://schema.org/SoldOut',
+      url: `${baseUrl}/vehiculo/${vehicle.id}`,
+      seller: {
+        '@type': 'AutoDealer',
+        name: 'Humberto Auto Import SRL',
+        url: baseUrl,
+      },
+    },
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
 
       <main className="flex-1">
         <article className="container mx-auto px-4 py-8">
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(vehicleSchema) }}
+          />
           <Link href="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
             <ArrowLeft className="h-4 w-4" />
             Volver al catálogo

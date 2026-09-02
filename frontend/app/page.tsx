@@ -15,24 +15,29 @@ export default function Home() {
       <Header />
 
       <main className="flex-1">
-        {/* 1. Hero futurista */}
-        <Hero />
+        {/* 1 y 2. Bloque Hero + Buscador de Renta con fondo oscuro unificado */}
+        <div className="relative bg-black">
+          <Hero />
 
-        {/* 2. Sección Renta de Autos (Buscador estilo Kayak / Rentcars) */}
-        <section id="renta-section" className="relative -mt-16 md:-mt-24 z-20 container mx-auto px-4 mb-12">
-          <RentalSearchWidget />
-        </section>
+          {/* Sección Renta de Autos (Buscador estilo Kayak / Rentcars) */}
+          <section id="renta-section" className="relative -mt-6 md:-mt-10 z-20 container mx-auto px-4 pb-12 scroll-mt-20">
+            <RentalSearchWidget />
+          </section>
 
-        {/* 3. Marcas — continúa el fondo oscuro del hero */}
+          {/* Transición suave hacia el contenido del sitio */}
+          <div
+            className="h-16 w-full pointer-events-none"
+            style={{
+              background: 'linear-gradient(to bottom, #000000 0%, hsl(var(--background)) 100%)'
+            }}
+          />
+        </div>
+
+        {/* 3. Marcas */}
         <BrandNav />
 
-        {/* 4. Gradiente de transición suave: oscuro → claro */}
-        <div className="h-20 w-full" style={{
-          background: 'linear-gradient(to bottom, #080c14 0%, hsl(var(--background)) 100%)'
-        }} />
-
         {/* 4. Catálogo de vehículos */}
-        <section id="catalogo-section" className="container mx-auto px-6 md:px-12 pb-12">
+        <section id="catalogo-section" className="container mx-auto px-6 md:px-12 pb-12 scroll-mt-20">
           <div className="mb-6">
             <p className="mb-1 text-xs font-bold uppercase tracking-[0.3em] text-orange-500">Inventario</p>
             <h2 className="text-2xl font-black tracking-tight md:text-3xl">Catálogo de Vehículos</h2>

@@ -282,6 +282,35 @@ function CheckoutContent() {
         Volver a la selección de autos
       </button>
 
+      {/* Resumen del auto para dispositivos móviles (visible solo en < lg) */}
+      <div className="block lg:hidden mb-6 p-4 rounded-xl border border-border/80 bg-card shadow-sm space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <Badge className="bg-orange-500 text-white font-bold text-[10px] mb-1">{vehicle.categoria}</Badge>
+            <h2 className="text-lg font-bold text-foreground leading-tight">
+              {vehicle.marca} {vehicle.modelo} ({vehicle.anio})
+            </h2>
+          </div>
+          <div className="text-right">
+            <span className="text-xs text-muted-foreground block">{dias} {dias === 1 ? 'día' : 'días'}</span>
+            <span className="text-xl font-black text-orange-600 dark:text-orange-400">
+              ${totalAlquiler.toFixed(2)}
+            </span>
+            <span className="text-[10px] text-muted-foreground ml-1">USD</span>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground pt-2 border-t border-border/40">
+          <span className="flex items-center gap-1">
+            <MapPin className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+            {sucRec?.nombre || 'Recogida'} → {sucDev?.nombre || 'Devolución'}
+          </span>
+          <span className="flex items-center gap-1">
+            <Calendar className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+            {new Date(fechaInicio).toLocaleDateString('es-DO')}
+          </span>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* COLUMNA IZQUIERDA: Formulario de Selección y Conductor (8 cols) */}
         <form onSubmit={handleSubmit} className="lg:col-span-8 space-y-8">
@@ -574,7 +603,7 @@ function CheckoutContent() {
         </form>
 
         {/* COLUMNA DERECHA: Resumen de Orden Flotante (4 cols) */}
-        <aside className="lg:col-span-4 sticky top-6 space-y-4">
+        <aside className="lg:col-span-4 sticky top-20 space-y-4">
           <Card className="border-border/80 shadow-lg overflow-hidden">
             <CardHeader className="bg-muted/40 p-5 border-b">
               <div className="flex items-center justify-between">

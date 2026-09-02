@@ -113,6 +113,15 @@ def _followup_worker() -> None:
 def _procesar_followups() -> None:
     ahora = datetime.now()
     with _lock:
+        # Limpieza periódica de sesiones inactivas (> 48 h)
+        expiradas = [
+            num for num, ses in _sesiones.items()
+            if (ahora - ses.get("ultimo_cliente_msg", ahora)) > timedelta(hours=48)
+            and (ses.get("followup_enviado") or not ses.get("pendiente_followup"))
+        ]
+        for exp in expiradas:
+            _sesiones.pop(exp, None)
+
         pendientes = [
             (num, ses) for num, ses in _sesiones.items()
             if ses["pendiente_followup"]
@@ -204,6 +213,11 @@ class WhatsAppService:
         with _lock:
             es_nuevo = from_ not in _sesiones
             if es_nuevo:
+                if len(_sesiones) >= 5000:
+                    # Desalojar el 20% de las sesiones más antiguas para proteger la memoria
+                    ordenadas = sorted(_sesiones.items(), key=lambda item: item[1].get("ultimo_cliente_msg", datetime.min))
+                    for k, _ in ordenadas[:1000]:
+                        _sesiones.pop(k, None)
                 _sesiones[from_] = _nueva_sesion()
             else:
                 _sesiones[from_]["ultimo_cliente_msg"] = datetime.now()

@@ -40,6 +40,7 @@ function DisponibilidadContent() {
   // Filtros locales
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>('all')
   const [transmisionFiltro, setTransmisionFiltro] = useState<string>('all')
+  const [filtrosMobileAbiertos, setFiltrosMobileAbiertos] = useState(false)
 
   useEffect(() => {
     // Cargar nombres de sucursales para encabezado
@@ -160,8 +161,29 @@ function DisponibilidadContent() {
       {/* Contenido Principal */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Barra Lateral de Filtros */}
-        <aside className="lg:col-span-1 space-y-6">
-          <div className="p-5 rounded-xl bg-card border border-border space-y-5">
+        <aside className="lg:col-span-1 space-y-4">
+          {/* Botón de toggle en móviles */}
+          <div className="lg:hidden">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full flex items-center justify-between py-2 px-4 h-11 border-border/80"
+              onClick={() => setFiltrosMobileAbiertos(!filtrosMobileAbiertos)}
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <SlidersHorizontal className="h-4 w-4 text-orange-500" />
+                Filtros
+                {(categoriaFiltro !== 'all' || transmisionFiltro !== 'all') && (
+                  <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
+                )}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {filtrosMobileAbiertos ? 'Ocultar filtros' : 'Ver filtros'}
+              </span>
+            </Button>
+          </div>
+
+          <div className={`${filtrosMobileAbiertos ? 'block' : 'hidden lg:block'} p-5 rounded-xl bg-card border border-border space-y-5 shadow-sm`}>
             <div className="flex items-center justify-between border-b pb-3">
               <h4 className="font-bold text-base flex items-center gap-2">
                 <Filter className="h-4 w-4 text-orange-500" /> Filtros

@@ -5,7 +5,7 @@ hace `@maneja_errores_renta` y toda la politica vive en `services/renta_politica
 El cliente no puede pedir nada que la politica no autorice.
 """
 import logging
-import random
+import secrets
 import string
 from datetime import datetime
 
@@ -44,13 +44,14 @@ def _barrer_no_shows_si_toca():
 
 
 def generar_pnr_unico() -> str:
-    """Codigo PNR unico en formato HA-XXXXX (8 caracteres)."""
+    """Codigo PNR criptográficamente seguro en formato HA-XXXXXX (9 caracteres)."""
     chars = string.ascii_uppercase + string.digits
-    for _ in range(20):
-        pnr = "HA-" + "".join(random.choices(chars, k=5))
+    for _ in range(30):
+        pnr = "HA-" + "".join(secrets.choice(chars) for _ in range(6))
         if not ReservaRenta.query.filter_by(pnr=pnr).first():
             return pnr
-    return f"HA-{int(datetime.utcnow().timestamp()) % 100000:05d}"
+    token = secrets.token_hex(3).upper()
+    return f"HA-{token}"
 
 
 def _clave_limite():

@@ -172,7 +172,7 @@ export function BrandNav() {
   if (unicas.length === 0) return null
 
   return (
-    <section id="marcas" className="py-10 bg-muted/30 border-y border-border/30">
+    <section id="marcas" className="py-10 bg-muted/30 border-y border-border/30 scroll-mt-20">
       <div className="container mx-auto px-4 sm:px-6 md:px-12">
         <p className="mb-6 text-center text-xs font-bold uppercase tracking-[0.3em] text-muted-foreground">
           Explora por Marca

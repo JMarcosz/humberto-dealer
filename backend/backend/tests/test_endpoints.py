@@ -20,16 +20,16 @@ def app():
     os.environ.setdefault("GOOGLE_CLIENT_ID",         "dummy")
     os.environ.setdefault("GOOGLE_CLIENT_SECRET",     "dummy")
 
-    application = create_app()
-    application.config.update({
+    application = create_app({
         "TESTING": True,
         "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+        "SQLALCHEMY_ENGINE_OPTIONS": {},
         "WTF_CSRF_ENABLED": False,
     })
     return application
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def client(app):
     return app.test_client()
 
@@ -40,8 +40,8 @@ def seed_db(app):
     with app.app_context():
         _db.create_all()
 
-        rol_admin  = Rol(nombre="ADMIN")
-        rol_pub    = Rol(nombre="USUARIO_PUBLICO")
+        rol_admin  = Rol(id=1, nombre="ADMIN")
+        rol_pub    = Rol(id=2, nombre="USUARIO_PUBLICO")
         _db.session.add_all([rol_admin, rol_pub])
         _db.session.flush()
 

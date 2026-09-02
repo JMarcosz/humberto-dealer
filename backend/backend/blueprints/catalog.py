@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from ..models import db, Marca, Modelo, Vehiculo, Resena, ResenaLike
 from ..decorators import login_required_api
-from backend import cache
+from backend import cache, limiter
 
 bp = Blueprint("catalog", __name__)
 log = logging.getLogger(__name__)
@@ -182,14 +182,28 @@ def listar_resenas(vehiculo_id: int):
 # ---------------------------------------------------------------
 @bp.post("/vehiculos/<int:vehiculo_id>/resenas")
 @login_required_api
+@limiter.limit("5 per minute; 30 per hour")
 def crear_resena(vehiculo_id: int):
     try:
         data         = request.get_json(silent=True) or {}
         calificacion = data.get("calificacion")
-        comentario   = data.get("comentario", "").strip()
+        comentario   = (data.get("comentario") or "").strip()
 
         if not calificacion or not (1 <= int(calificacion) <= 5):
             return jsonify({"error": "Calificación debe ser entre 1 y 5"}), 400
+
+        if len(comentario) > 1000:
+            return jsonify({"error": "El comentario no puede superar los 1,000 caracteres"}), 422
+
+        vehiculo = db.session.get(Vehiculo, vehiculo_id)
+        if not vehiculo or vehiculo.estado not in ESTADOS_PUBLICOS:
+            return jsonify({"error": "Vehículo no disponible para reseñas"}), 404
+
+        existente = Resena.query.filter_by(
+            usuario_id=current_user.id, vehiculo_id=vehiculo_id
+        ).first()
+        if existente:
+            return jsonify({"error": "Ya has publicado una reseña para este vehículo"}), 409
 
         resena = Resena(
             usuario_id  = current_user.id,
@@ -216,6 +230,7 @@ def crear_resena(vehiculo_id: int):
 # ---------------------------------------------------------------
 @bp.post("/vehiculos/<int:vehiculo_id>/resenas/<int:resena_id>/like")
 @login_required_api
+@limiter.limit("30 per minute")
 def toggle_like_resena(vehiculo_id: int, resena_id: int):
     try:
         resena = db.session.get(Resena, resena_id)

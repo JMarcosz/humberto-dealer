@@ -1,6 +1,7 @@
 """Servicio de importación y exportación Excel con openpyxl."""
 import logging
 import os
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -322,7 +323,8 @@ class ExcelService:
         for col in range(1, len(headers) + 1):
             ws.column_dimensions[get_column_letter(col)].auto_size = True  # type: ignore
 
-        ruta = os.path.join(os.path.dirname(__file__), "..", "..", "tmp_exports", "inventario.xlsx")
+        nombre_archivo = f"inventario_{uuid.uuid4().hex}.xlsx"
+        ruta = os.path.join(os.path.dirname(__file__), "..", "..", "tmp_exports", nombre_archivo)
         os.makedirs(os.path.dirname(ruta), exist_ok=True)
         ruta = os.path.normpath(ruta)
         wb.save(ruta)
