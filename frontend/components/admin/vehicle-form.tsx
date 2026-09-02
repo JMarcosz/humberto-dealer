@@ -23,6 +23,7 @@ interface VehicleFormProps {
 
 const emptyVehicle: Vehicle = {
   id: '',
+  modeloId: 0,
   marca: '',
   modelo: '',
   año: new Date().getFullYear(),

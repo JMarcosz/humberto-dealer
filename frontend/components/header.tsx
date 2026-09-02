@@ -70,11 +70,19 @@ export function Header() {
         {/* Nav desktop */}
         <div className="hidden items-center gap-6 md:flex">
           <a
+            href="/#renta-section"
+            onClick={(e) => handleSectionNav(e, 'renta-section')}
+            className="text-sm font-bold text-orange-500 hover:text-orange-600 transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
+            Rentar Auto
+          </a>
+          <a
             href="/#catalogo-section"
             onClick={(e) => handleSectionNav(e, 'catalogo-section')}
             className="text-sm font-medium text-foreground/80 transition-colors hover:text-primary cursor-pointer"
           >
-            Catálogo
+            Catálogo Venta
           </a>
           <a
             href="/#marcas"
@@ -108,7 +116,14 @@ export function Header() {
                 </Button>
               </Link>
               {user.rol?.nombre === 'ADMIN' && (
-                <Link href="/admin"><Button variant="outline" size="sm">Admin</Button></Link>
+                <>
+                  <Link href="/admin/renta">
+                    <Button variant="secondary" size="sm" className="text-xs font-bold bg-orange-500/10 text-orange-600 hover:bg-orange-500/20">
+                      Renta Ops
+                    </Button>
+                  </Link>
+                  <Link href="/admin"><Button variant="outline" size="sm">Admin</Button></Link>
+                </>
               )}
               <Button variant="ghost" size="sm" className="gap-2" onClick={handleLogout}>
                 <LogOut className="h-4 w-4" /><span>Salir</span>
@@ -144,11 +159,19 @@ export function Header() {
         <div className="border-t border-border md:hidden">
           <div className="container mx-auto space-y-1 px-4 py-3">
             <a
+              href="/#renta-section"
+              onClick={(e) => handleSectionNav(e, 'renta-section')}
+              className="block rounded-md px-3 py-3 text-base font-bold text-orange-500 hover:bg-muted cursor-pointer min-h-[44px] flex items-center gap-2"
+            >
+              <span className="h-2 w-2 rounded-full bg-orange-500" />
+              Rentar Auto
+            </a>
+            <a
               href="/#catalogo-section"
               onClick={(e) => handleSectionNav(e, 'catalogo-section')}
               className="block rounded-md px-3 py-3 text-base font-medium hover:bg-muted cursor-pointer min-h-[44px] flex items-center"
             >
-              Catálogo
+              Catálogo Venta
             </a>
             <a
               href="/#marcas"

@@ -237,10 +237,11 @@ export const MODEL_IMAGES: Record<string, string[]> = {
 
 export const FALLBACK_VEHICLE_IMAGE = 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&q=80'
 
-export function getVehicleImageUrl(modelo: string, vehiculoId?: number, url?: string): string {
+export function getVehicleImageUrl(modelo: string, vehiculoId?: number | string, url?: string): string {
   if (url && !url.includes('placeholder')) return url
   const pool = MODEL_IMAGES[modelo]
   if (!pool || pool.length === 0) return FALLBACK_VEHICLE_IMAGE
   if (vehiculoId == null) return pool[0]
-  return pool[vehiculoId % pool.length]
+  const numId = typeof vehiculoId === 'string' ? (parseInt(vehiculoId, 10) || 0) : vehiculoId
+  return pool[numId % pool.length]
 }

@@ -2,7 +2,8 @@
 import logging
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
+from decimal import Decimal
 from flask import Blueprint, jsonify, request, current_app
 from werkzeug.utils import secure_filename
 
@@ -12,8 +13,12 @@ from ..models import (
     db, Vehiculo, Venta, Reserva, Cliente, Pago, VehiculoImagen, Marca, Modelo,
     ReservaRenta, TarifaRenta, InspeccionRenta
 )
-from ..decorators import admin_required
+from ..decorators import admin_required, maneja_errores_renta
+from ..errors import ReglaNegocioError
 from ..validators import forzar_mayusculas, validar_mayusculas
+from ..services import renta_calendario as cal
+from ..services import renta_politica as pol
+from backend import limiter
 
 ALLOWED_EXT = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
 
@@ -452,217 +457,324 @@ def set_imagen_principal(iid: int):
 # ===============================================================
 # OPERACIONES DE RENTA DE AUTOS (US-RENT-05)
 # ===============================================================
+# Toda la politica vive en services/renta_politica.py: aqui no se decide,
+# se orquesta. Ningun endpoint contiene un `try` propio.
+
+_ESTADOS_RESERVA_RENTA = {"CONFIRMADA", "EN_CURSO", "COMPLETADA",
+                          "CANCELADA", "NO_SHOW", "EXPIRADA"}
+
 
 # ---------------------------------------------------------------
 # GET /api/admin/renta/reservas
-# Query params: page, per_page, estado, buscar (PNR o conductor)
 # ---------------------------------------------------------------
 @bp.get("/renta/reservas")
 @admin_required
+@maneja_errores_renta
 def listar_reservas_renta_admin():
-    try:
-        page     = request.args.get("page", 1, type=int)
-        per_page = request.args.get("per_page", 20, type=int)
-        estado   = request.args.get("estado")
-        buscar   = request.args.get("buscar", "").strip()
+    page     = pol.parse_int(request.args.get("page"), "page",
+                             minimo=1, requerido=False, defecto=1)
+    per_page = pol.parse_int(request.args.get("per_page"), "per_page",
+                             minimo=1, maximo=100, requerido=False, defecto=20)
+    buscar   = pol.parse_str(request.args.get("buscar"), "buscar",
+                             max_largo=100, requerido=False)
 
-        q = ReservaRenta.query.options(
-            joinedload(ReservaRenta.vehiculo).joinedload(Vehiculo.modelo).joinedload(Modelo.marca),
-            joinedload(ReservaRenta.sucursal_recogida),
-            joinedload(ReservaRenta.sucursal_devolucion),
-            joinedload(ReservaRenta.cobertura),
-        )
+    q = ReservaRenta.query.options(
+        joinedload(ReservaRenta.vehiculo).joinedload(Vehiculo.modelo).joinedload(Modelo.marca),
+        joinedload(ReservaRenta.sucursal_recogida),
+        joinedload(ReservaRenta.sucursal_devolucion),
+        joinedload(ReservaRenta.cobertura),
+    )
 
-        if estado and estado.upper() != "ALL":
-            q = q.filter(ReservaRenta.estado == estado.upper())
+    estado_raw = request.args.get("estado")
+    if estado_raw and estado_raw.upper() != "ALL":
+        estado = pol.parse_enum(estado_raw, "estado", _ESTADOS_RESERVA_RENTA)
+        q = q.filter(ReservaRenta.estado == estado)
 
-        if buscar:
-            like = f"%{buscar}%"
-            q = q.filter(
-                db.or_(
-                    ReservaRenta.pnr.ilike(like),
-                    ReservaRenta.conductor_nombre.ilike(like),
-                    ReservaRenta.conductor_apellido.ilike(like),
-                    ReservaRenta.conductor_documento.ilike(like),
-                    ReservaRenta.conductor_email.ilike(like),
-                )
-            )
+    if buscar:
+        like = f"%{buscar}%"
+        q = q.filter(db.or_(
+            ReservaRenta.pnr.ilike(like),
+            ReservaRenta.conductor_nombre.ilike(like),
+            ReservaRenta.conductor_apellido.ilike(like),
+            ReservaRenta.conductor_documento.ilike(like),
+            ReservaRenta.conductor_email.ilike(like),
+        ))
 
-        paginado = q.order_by(ReservaRenta.fecha_inicio.desc()).paginate(
-            page=page, per_page=min(per_page, 100), error_out=False
-        )
+    paginado = q.order_by(ReservaRenta.fecha_inicio.desc()).paginate(
+        page=page, per_page=per_page, error_out=False)
 
-        return jsonify({
-            "total": paginado.total,
-            "page": paginado.page,
-            "pages": paginado.pages,
-            "items": [r.to_dict(include_detalle=True) for r in paginado.items],
-        })
-    except Exception as exc:
-        log.error("listar_reservas_renta_admin: %s", exc)
-        return jsonify({"error": "Error interno"}), 500
+    return jsonify({
+        "total": paginado.total,
+        "page": paginado.page,
+        "pages": paginado.pages,
+        "items": [r.to_dict(include_detalle=True) for r in paginado.items],
+    })
+
+
+def _reserva_desde_payload(data, *, bloquear=True):
+    """Localiza la reserva por pnr o reserva_id, con coercion segura."""
+    pnr = pol.parse_str(data.get("pnr"), "pnr", max_largo=12, requerido=False)
+    rid = pol.parse_int(data.get("reserva_id"), "reserva_id",
+                        minimo=1, requerido=False)
+    return cal.obtener_reserva(pnr=pnr, reserva_id=rid, bloquear=bloquear)
 
 
 # ---------------------------------------------------------------
-# POST /api/admin/renta/check-in   (Entrega del vehículo al cliente)
-# Body: { reserva_id o pnr, odometro, combustible, observaciones_danos, fotos_urls }
+# POST /api/admin/renta/check-in   (entrega del vehiculo)
 # ---------------------------------------------------------------
 @bp.post("/renta/check-in")
 @admin_required
+@limiter.limit("60 per minute")
+@maneja_errores_renta
 def registrar_check_in():
-    try:
-        data        = request.get_json(silent=True) or {}
-        reserva_id  = data.get("reserva_id")
-        pnr         = data.get("pnr")
-        odometro    = data.get("odometro")
-        combustible = data.get("combustible", "8/8")
-        obs         = data.get("observaciones_danos", "")
-        fotos       = data.get("fotos_urls", "")
+    data    = request.get_json(silent=True) or {}
+    reserva = _reserva_desde_payload(data)
 
-        if not odometro or (not reserva_id and not pnr):
-            return jsonify({"error": "Se requiere reserva_id o pnr, y el odómetro actual"}), 400
+    # minimo=0: un auto nuevo con 0 km debe poder entregarse. El `if not odometro`
+    # anterior lo rechazaba como si el campo faltara.
+    odometro    = pol.parse_int(data.get("odometro"), "odometro", minimo=0, maximo=9999999)
+    combustible = pol.parse_enum(data.get("combustible"), "combustible",
+                                 set(pol.NIVELES_COMBUSTIBLE),
+                                 requerido=False, defecto="8/8")
+    observaciones = pol.parse_str(data.get("observaciones_danos"), "observaciones_danos",
+                                  max_largo=2000, requerido=False) or ""
 
-        reserva = None
-        if reserva_id:
-            reserva = db.session.get(ReservaRenta, int(reserva_id))
-        elif pnr:
-            reserva = ReservaRenta.query.filter_by(pnr=pnr.strip().upper()).first()
+    pol.validar_transicion(reserva.estado, "EN_CURSO")
 
-        if not reserva:
-            return jsonify({"error": "Reserva no encontrada"}), 404
+    # El auto no se entrega con meses de antelacion respecto a lo pactado.
+    ahora = datetime.utcnow()
+    inicio_ventana = reserva.fecha_inicio - timedelta(hours=pol.VENTANA_CHECKIN_ANTES_HORAS)
+    fin_ventana    = reserva.fecha_inicio + timedelta(hours=pol.VENTANA_CHECKIN_DESPUES_HORAS)
+    if ahora < inicio_ventana:
+        raise ReglaNegocioError(
+            f"El check-in solo puede registrarse desde "
+            f"{pol.VENTANA_CHECKIN_ANTES_HORAS} horas antes de la recogida pactada "
+            f"({reserva.fecha_inicio.isoformat()}).",
+            422, "CHECKIN_FUERA_DE_VENTANA")
+    if ahora > fin_ventana:
+        raise ReglaNegocioError(
+            "La ventana de retiro de esta reserva ya vencio. Registrala como no-show "
+            "o crea una reserva nueva.",
+            422, "CHECKIN_VENTANA_VENCIDA")
 
-        if reserva.estado != "CONFIRMADA":
-            return jsonify({"error": f"No se puede realizar Check-in en una reserva con estado {reserva.estado}"}), 422
+    fotos = data.get("fotos_urls", "")
+    db.session.add(InspeccionRenta(
+        reserva_id          = reserva.id,
+        tipo                = "ENTREGA",
+        odometro            = odometro,
+        combustible         = combustible,
+        observaciones_danos = observaciones,
+        fotos_urls          = fotos if isinstance(fotos, str) else ",".join(map(str, fotos)),
+    ))
 
-        inspeccion = InspeccionRenta(
-            reserva_id          = reserva.id,
-            tipo                = "ENTREGA",
-            odometro            = int(odometro),
-            combustible         = combustible,
-            observaciones_danos = obs,
-            fotos_urls          = fotos if isinstance(fotos, str) else ",".join(fotos),
-        )
-        db.session.add(inspeccion)
+    reserva.estado              = "EN_CURSO"
+    reserva.fecha_recogida_real = ahora
 
-        # Transición de estado a EN_CURSO
-        reserva.estado = "EN_CURSO"
-        db.session.commit()
+    # El vehiculo pasa a RENTADO: mientras rueda no puede entrar al embudo de venta.
+    if reserva.vehiculo:
+        reserva.vehiculo.estado = "RENTADO"
 
-        log.info("Check-in registrado para reserva PNR %s: odómetro=%d, combustible=%s", reserva.pnr, int(odometro), combustible)
-        return jsonify({
-            "mensaje": "Check-in registrado exitosamente. Vehículo entregado.",
-            "reserva": reserva.to_dict(include_detalle=True),
-        })
-    except Exception as exc:
-        db.session.rollback()
-        log.error("registrar_check_in: %s", exc)
-        return jsonify({"error": "Error interno"}), 500
+    db.session.commit()
+    log.info("Check-in PNR %s: odometro=%d combustible=%s", reserva.pnr, odometro, combustible)
+    return jsonify({
+        "mensaje": "Check-in registrado exitosamente. Vehiculo entregado.",
+        "reserva": reserva.to_dict(include_detalle=True),
+    })
 
 
 # ---------------------------------------------------------------
-# POST /api/admin/renta/check-out   (Devolución y cierre de la renta)
-# Body: { reserva_id o pnr, odometro, combustible, observaciones_danos, fotos_urls }
+# POST /api/admin/renta/check-out   (devolucion y liquidacion)
 # ---------------------------------------------------------------
 @bp.post("/renta/check-out")
 @admin_required
+@limiter.limit("60 per minute")
+@maneja_errores_renta
 def registrar_check_out():
-    try:
-        data        = request.get_json(silent=True) or {}
-        reserva_id  = data.get("reserva_id")
-        pnr         = data.get("pnr")
-        odometro    = data.get("odometro")
-        combustible = data.get("combustible", "8/8")
-        obs         = data.get("observaciones_danos", "")
-        fotos       = data.get("fotos_urls", "")
+    data    = request.get_json(silent=True) or {}
+    reserva = _reserva_desde_payload(data)
 
-        if not odometro or (not reserva_id and not pnr):
-            return jsonify({"error": "Se requiere reserva_id o pnr, y el odómetro actual"}), 400
+    odometro    = pol.parse_int(data.get("odometro"), "odometro", minimo=0, maximo=9999999)
+    combustible = pol.parse_enum(data.get("combustible"), "combustible",
+                                 set(pol.NIVELES_COMBUSTIBLE),
+                                 requerido=False, defecto="8/8")
+    observaciones = pol.parse_str(data.get("observaciones_danos"), "observaciones_danos",
+                                  max_largo=2000, requerido=False) or ""
+    cargo_danos = pol.parse_decimal(data.get("cargo_danos"), "cargo_danos",
+                                    minimo=Decimal("0"), maximo=Decimal("99999999"),
+                                    requerido=False, defecto=Decimal("0.00"))
 
-        reserva = None
-        if reserva_id:
-            reserva = db.session.get(ReservaRenta, int(reserva_id))
-        elif pnr:
-            reserva = ReservaRenta.query.filter_by(pnr=pnr.strip().upper()).first()
+    pol.validar_transicion(reserva.estado, "COMPLETADA")
 
-        if not reserva:
-            return jsonify({"error": "Reserva no encontrada"}), 404
+    entrega = next((i for i in reserva.inspecciones if i.tipo == "ENTREGA"), None)
+    if entrega and odometro < entrega.odometro:
+        raise ReglaNegocioError(
+            f"El odometro de devolucion ({odometro} km) no puede ser menor que el "
+            f"de entrega ({entrega.odometro} km).",
+            422, "ODOMETRO_REGRESIVO")
 
-        if reserva.estado != "EN_CURSO":
-            return jsonify({"error": f"No se puede realizar Check-out en una reserva con estado {reserva.estado}"}), 422
+    db.session.add(InspeccionRenta(
+        reserva_id          = reserva.id,
+        tipo                = "DEVOLUCION",
+        odometro            = odometro,
+        combustible         = combustible,
+        observaciones_danos = observaciones,
+        fotos_urls          = "",
+    ))
 
-        inspeccion = InspeccionRenta(
-            reserva_id          = reserva.id,
-            tipo                = "DEVOLUCION",
-            odometro            = int(odometro),
-            combustible         = combustible,
-            observaciones_danos = obs,
-            fotos_urls          = fotos if isinstance(fotos, str) else ",".join(fotos),
-        )
-        db.session.add(inspeccion)
+    # Reglas 1 y 5 al cierre: retraso y combustible faltante.
+    ahora       = datetime.utcnow()
+    penalidades = pol.calcular_penalidades(
+        fecha_fin_prevista = reserva.fecha_fin,
+        devuelto_en        = ahora,
+        octavos_entrega    = pol.parse_nivel_combustible(
+            entrega.combustible if entrega else "8/8"),
+        octavos_devolucion = pol.parse_nivel_combustible(combustible),
+        tarifa_dia         = reserva.tarifa_diaria_aplicada,
+    )
+    total_penalidades = penalidades["total_penalidades"] + cargo_danos
 
-        # Actualizar kilometraje del vehículo si es mayor
-        if reserva.vehiculo and int(odometro) > (reserva.vehiculo.kilometraje or 0):
-            reserva.vehiculo.kilometraje = int(odometro)
+    reserva.horas_retraso         = penalidades["horas_retraso"]
+    reserva.cargo_retraso         = penalidades["cargo_retraso"]
+    reserva.cargo_combustible     = penalidades["cargo_combustible"]
+    reserva.cargo_danos           = cargo_danos
+    reserva.total_penalidades     = total_penalidades
+    reserva.total_final           = reserva.total_alquiler + total_penalidades
+    reserva.fecha_devolucion_real = ahora
+    reserva.estado                = "COMPLETADA"
 
-        # Transición de estado a COMPLETADA
-        reserva.estado = "COMPLETADA"
-        db.session.commit()
+    if reserva.vehiculo:
+        if odometro > (reserva.vehiculo.kilometraje or 0):
+            reserva.vehiculo.kilometraje = odometro
+        if reserva.vehiculo.estado == "RENTADO":
+            reserva.vehiculo.estado = "DISPONIBLE"
 
-        log.info("Check-out registrado para reserva PNR %s: odómetro=%d, combustible=%s", reserva.pnr, int(odometro), combustible)
-        return jsonify({
-            "mensaje": "Check-out registrado exitosamente. Renta finalizada y depósito en garantía liberado.",
-            "reserva": reserva.to_dict(include_detalle=True),
-        })
-    except Exception as exc:
-        db.session.rollback()
-        log.error("registrar_check_out: %s", exc)
-        return jsonify({"error": "Error interno"}), 500
+    db.session.commit()
+
+    deposito  = reserva.deposito_garantia_monto
+    retencion = min(deposito, total_penalidades)
+    mensaje = ("Check-out registrado. Renta finalizada sin cargos: procede liberar "
+               "el deposito completo.") if total_penalidades <= 0 else (
+        f"Check-out registrado con cargos por {total_penalidades} {reserva.moneda}. "
+        f"Retener {retencion} del deposito y liberar el resto.")
+
+    log.info("Check-out PNR %s: odometro=%d penalidades=%s",
+             reserva.pnr, odometro, total_penalidades)
+    return jsonify({
+        "mensaje": mensaje,
+        "liquidacion": {
+            "horas_retraso":      float(penalidades["horas_retraso"]),
+            "cargo_retraso":      float(penalidades["cargo_retraso"]),
+            "octavos_faltantes":  penalidades["octavos_faltantes"],
+            "cargo_combustible":  float(penalidades["cargo_combustible"]),
+            "cargo_danos":        float(cargo_danos),
+            "total_penalidades":  float(total_penalidades),
+            "total_final":        float(reserva.total_final),
+            "deposito_a_retener": float(retencion),
+            "deposito_a_liberar": float(deposito - retencion),
+        },
+        "reserva": reserva.to_dict(include_detalle=True),
+    })
 
 
 # ---------------------------------------------------------------
-# POST /api/admin/renta/tarifas   (Configurar o actualizar tarifa de renta)
-# Body: { vehiculo_id, precio_dia_base, deposito_garantia, moneda, kilometraje_incluido }
+# POST /api/admin/renta/cancelar   (cancelacion por mostrador)
+# ---------------------------------------------------------------
+@bp.post("/renta/cancelar")
+@admin_required
+@maneja_errores_renta
+def cancelar_reserva_renta_admin():
+    data    = request.get_json(silent=True) or {}
+    reserva = _reserva_desde_payload(data)
+    motivo  = pol.parse_str(data.get("motivo"), "motivo", max_largo=255, min_largo=5)
+    destino = pol.parse_enum(data.get("estado"), "estado", {"CANCELADA", "NO_SHOW"},
+                             requerido=False, defecto="CANCELADA")
+
+    pol.validar_transicion(reserva.estado, destino)
+
+    reserva.estado             = destino
+    reserva.cancelada_en       = datetime.utcnow()
+    reserva.cancelado_por      = "ADMIN"
+    reserva.cancelacion_motivo = motivo
+    db.session.commit()
+
+    log.info("Reserva %s marcada como %s por admin", reserva.pnr, destino)
+    return jsonify({
+        "mensaje": f"Reserva marcada como {destino}. El vehiculo vuelve a estar disponible.",
+        "reserva": reserva.to_dict(include_detalle=True),
+    })
+
+
+# ---------------------------------------------------------------
+# POST /api/admin/renta/tarifas
 # ---------------------------------------------------------------
 @bp.post("/renta/tarifas")
 @admin_required
+@limiter.limit("30 per minute")
+@maneja_errores_renta
 def guardar_tarifa_renta():
-    try:
-        data    = request.get_json(silent=True) or {}
-        vid     = data.get("vehiculo_id")
-        precio  = data.get("precio_dia_base")
-        depo    = data.get("deposito_garantia", 500.0)
-        moneda  = data.get("moneda", "USD")
-        km_inc  = data.get("kilometraje_incluido", "ILIMITADO")
+    data = request.get_json(silent=True) or {}
 
-        if not vid or precio is None:
-            return jsonify({"error": "vehiculo_id y precio_dia_base son requeridos"}), 400
+    vid    = pol.parse_int(data.get("vehiculo_id"), "vehiculo_id", minimo=1)
+    precio = pol.parse_decimal(data.get("precio_dia_base"), "precio_dia_base",
+                               minimo=Decimal("0.01"), maximo=Decimal("99999999"))
+    deposito = pol.parse_decimal(data.get("deposito_garantia"), "deposito_garantia",
+                                 minimo=Decimal("0"), maximo=Decimal("99999999"),
+                                 requerido=False, defecto=Decimal("500.00"))
+    moneda = pol.parse_enum(data.get("moneda"), "moneda", {"USD", "DOP"},
+                            requerido=False, defecto="USD")
+    km_inc = pol.parse_str(data.get("kilometraje_incluido"), "kilometraje_incluido",
+                           max_largo=50, requerido=False) or "ILIMITADO"
 
-        vehiculo = db.get_or_404(Vehiculo, int(vid))
-        vehiculo.disponible_para = data.get("disponible_para", "AMBOS")
-        if "pasajeros" in data:
-            vehiculo.pasajeros = int(data["pasajeros"])
-        if "maletas_grandes" in data:
-            vehiculo.maletas_grandes = int(data["maletas_grandes"])
-        if "maletas_pequenas" in data:
-            vehiculo.maletas_pequenas = int(data["maletas_pequenas"])
+    vehiculo = db.session.get(Vehiculo, vid)
+    if not vehiculo:
+        raise ReglaNegocioError("Vehiculo no encontrado.", 404, "VEHICULO_NO_ENCONTRADO")
 
-        tarifa = TarifaRenta.query.filter_by(vehiculo_id=vehiculo.id).first()
-        if not tarifa:
-            tarifa = TarifaRenta(vehiculo_id=vehiculo.id)
-            db.session.add(tarifa)
+    # Solo se toca `disponible_para` si viene explicito: antes se sobrescribia a
+    # AMBOS en toda llamada, asi que cambiar un precio reconvertia el vehiculo.
+    if "disponible_para" in data:
+        destino = pol.parse_enum(data.get("disponible_para"), "disponible_para",
+                                 {"VENTA", "RENTA", "AMBOS"})
+        if destino == "VENTA":
+            futura = cal.tiene_rentas_futuras(vehiculo.id)
+            if futura:
+                raise ReglaNegocioError(
+                    f"No se puede dedicar este vehiculo solo a venta: tiene la "
+                    f"renta {futura.pnr} vigente hasta {futura.fecha_fin.isoformat()}.",
+                    409, "TIENE_RENTAS_FUTURAS")
+        if destino == "RENTA":
+            venta_activa = Reserva.query.filter_by(
+                vehiculo_id=vehiculo.id, estado="EN_PROCESO").first()
+            if venta_activa:
+                raise ReglaNegocioError(
+                    "No se puede dedicar a renta: el vehiculo tiene una reserva de "
+                    "venta en proceso.",
+                    409, "TIENE_RESERVA_VENTA")
+        vehiculo.disponible_para = destino
 
-        tarifa.precio_dia_base      = float(precio)
-        tarifa.deposito_garantia    = float(depo)
-        tarifa.moneda               = moneda
-        tarifa.kilometraje_incluido = km_inc
-        tarifa.activo               = data.get("activo", True)
+    if "pasajeros" in data:
+        vehiculo.pasajeros = pol.parse_int(data["pasajeros"], "pasajeros",
+                                           minimo=1, maximo=20)
+    if "maletas_grandes" in data:
+        vehiculo.maletas_grandes = pol.parse_int(data["maletas_grandes"],
+                                                 "maletas_grandes", minimo=0, maximo=20)
+    if "maletas_pequenas" in data:
+        vehiculo.maletas_pequenas = pol.parse_int(data["maletas_pequenas"],
+                                                  "maletas_pequenas", minimo=0, maximo=20)
 
-        db.session.commit()
-        return jsonify({
-            "mensaje": "Tarifa de renta actualizada exitosamente",
-            "tarifa": tarifa.to_dict(),
-        })
-    except Exception as exc:
-        db.session.rollback()
-        log.error("guardar_tarifa_renta: %s", exc)
-        return jsonify({"error": "Error interno"}), 500
+    tarifa = TarifaRenta.query.filter_by(vehiculo_id=vehiculo.id).first()
+    if not tarifa:
+        tarifa = TarifaRenta(vehiculo_id=vehiculo.id)
+        db.session.add(tarifa)
+
+    tarifa.precio_dia_base      = precio
+    tarifa.deposito_garantia    = deposito
+    tarifa.moneda               = moneda
+    tarifa.kilometraje_incluido = km_inc
+    tarifa.activo               = pol.parse_bool(data.get("activo"), "activo",
+                                                 requerido=False, defecto=True)
+
+    db.session.commit()
+    return jsonify({
+        "mensaje": "Tarifa de renta actualizada exitosamente",
+        "tarifa": tarifa.to_dict(),
+    })

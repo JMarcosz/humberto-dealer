@@ -218,3 +218,245 @@ export interface Review {
   comentario: string
   fecha: string
 }
+
+// ============================================================
+// TIPOS DE RENTA DE AUTOS (CAR RENTAL ENGINE)
+// ============================================================
+
+export interface Sucursal {
+  id: number
+  nombre: string
+  codigo_aeropuerto?: string | null
+  direccion: string
+  ciudad: string
+  telefono?: string | null
+  horario_atencion: string
+  latitud?: number | null
+  longitud?: number | null
+  activo: boolean
+}
+
+export interface CoberturaSeguro {
+  id: number
+  codigo: string
+  nombre: string
+  costo_dia: number
+  /** Porcentaje que esta cobertura reduce sobre el deposito base del vehiculo. */
+  reduccion_deposito_pct: number
+  deducible_monto: number
+  descripcion?: string
+  bullets: string[]
+  destacado: boolean
+}
+
+export interface ExtraServicio {
+  id: number
+  codigo: string
+  nombre: string
+  descripcion?: string
+  costo_dia: number
+  es_pago_unico: boolean
+  icono?: string
+}
+
+export interface RentalVehicleTarifa {
+  precio_por_dia: number
+  dias: number
+  total_estimado: number
+  deposito_garantia: number
+  moneda: string
+}
+
+export interface RentalVehicle {
+  id: number
+  marca: string
+  modelo: string
+  categoria: string
+  anio: number
+  color: string
+  combustible: string
+  transmision: string
+  pasajeros: number
+  maletas_grandes: number
+  maletas_pequenas: number
+  tiene_aire_acondicionado: boolean
+  kilometraje_incluido: string
+  politica_combustible: string
+  tarifa: RentalVehicleTarifa
+  imagenes: { id: number; url: string; es_principal: boolean }[]
+  imagen_principal?: string | null
+}
+
+export interface DisponibilidadRentaResponse {
+  dias_facturables: number
+  fecha_inicio: string
+  fecha_fin: string
+  total_disponibles: number
+  vehiculos: RentalVehicle[]
+}
+
+export interface ConductorPayload {
+  nombre: string
+  apellido: string
+  email: string
+  telefono: string
+  documento: string
+  licencia: string
+  fecha_nacimiento: string
+}
+
+/** Estados de una reserva de renta, alineados con el ENUM del backend. */
+export type EstadoReservaRenta =
+  | 'CONFIRMADA' | 'EN_CURSO' | 'COMPLETADA'
+  | 'CANCELADA'  | 'NO_SHOW'  | 'EXPIRADA'
+
+/**
+ * Segundo factor del voucher publico. Nunca viaja en la URL de la pagina:
+ * quedaria en el historial, en el Referer y en los logs de acceso.
+ */
+export interface FactorVoucher {
+  apellido?: string
+  doc4?: string
+}
+
+/**
+ * Constantes de politica publicadas por el backend (`GET /api/renta/politica`).
+ *
+ * La UI las consume para constrenir sus inputs. Ningun umbral de negocio se
+ * codifica en el frontend.
+ */
+export interface PoliticaRenta {
+  duracion_minima_horas: number
+  duracion_maxima_dias: number
+  lead_time_minimo_minutos: number
+  horizonte_maximo_dias: number
+  edad_minima: number
+  edad_maxima: number
+  young_driver_edad_max: number
+  young_driver_cargo_dia: number
+  extras_cantidad_maxima: number
+  extras_distintos_maximo: number
+  reservas_activas_maximas: number
+  deposito_minimo: number
+  niveles_combustible: string[]
+  terminos_version: string
+}
+
+/** Desglose calculado por el backend. El frontend no recalcula ninguna cifra. */
+export interface CotizacionRenta {
+  vehiculo_id: number
+  cobertura_id: number
+  dias_facturables: number
+  tarifa_diaria: number
+  subtotal_vehiculo: number
+  subtotal_cobertura: number
+  subtotal_extras: number
+  recargo_young_driver: number
+  total_alquiler: number
+  deposito_garantia: number
+  moneda: string
+  edad_conductor: number | null
+  es_young_driver: boolean
+  extras: {
+    extra_id: number
+    nombre: string
+    cantidad: number
+    precio_unitario: number
+    subtotal: number
+  }[]
+  coberturas_disponibles: {
+    cobertura_id: number
+    codigo: string
+    nombre: string
+    costo_dia: number
+    /** Ya calculado para ESTE vehiculo: la UI no aplica la formula. */
+    deposito_garantia: number
+    subtotal: number
+  }[]
+}
+
+/** Conductor tal como lo devuelve el voucher publico: PII enmascarada. */
+export interface ConductorVoucher {
+  nombre: string
+  apellido: string
+  email: string
+  telefono: string
+  documento: string
+  licencia: string
+  fecha_nacimiento?: string
+}
+
+export interface ReservaRentaPayload {
+  vehiculo_id: number
+  sucursal_recogida_id: number
+  sucursal_devolucion_id: number
+  fecha_inicio: string
+  fecha_fin: string
+  cobertura_id: number
+  extras_ids: number[]
+  conductor: ConductorPayload
+  notas_vuelo?: string
+  /** Prueba de aceptacion del contrato; el backend la persiste con version e IP. */
+  acepta_terminos?: boolean
+}
+
+export interface ReservaRenta {
+  id: number
+  pnr: string
+  estado: EstadoReservaRenta
+  vehiculo_id: number
+  vehiculo_nombre: string
+  categoria?: string
+  fecha_inicio: string
+  fecha_fin: string
+  total_dias: number
+  total_alquiler: number
+  deposito_garantia_monto: number
+  moneda: string
+  sucursal_recogida: Sucursal
+  sucursal_devolucion: Sucursal
+  conductor: ConductorVoucher
+  notas_vuelo?: string
+  creado_en: string
+  vehiculo_imagen?: string | null
+  cobertura?: CoberturaSeguro
+  desglose?: {
+    tarifa_diaria: number
+    subtotal_vehiculo: number
+    subtotal_cobertura: number
+    subtotal_extras: number
+    recargo_young_driver: number
+  }
+  edad_conductor?: number | null
+  liquidacion?: {
+    recogida_real: string | null
+    devolucion_real: string | null
+    horas_retraso: number
+    cargo_retraso: number
+    cargo_combustible: number
+    cargo_danos: number
+    total_penalidades: number
+    total_final: number | null
+  }
+  cancelacion?: {
+    cancelada_en: string | null
+    motivo: string | null
+    cancelado_por: 'CLIENTE' | 'ADMIN' | 'SISTEMA' | null
+  }
+  extras?: {
+    extra_id: number
+    nombre: string
+    cantidad: number
+    precio_unitario: number
+    subtotal: number
+  }[]
+  inspecciones?: {
+    id: number
+    tipo: 'ENTREGA' | 'DEVOLUCION'
+    odometro: number
+    combustible: string
+    observaciones_danos?: string
+    fotos: string[]
+    creado_en: string
+  }[]
+}

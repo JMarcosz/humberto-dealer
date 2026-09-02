@@ -47,6 +47,6 @@ export const useVehiculo = (id: number | string) =>
 export const useResenas = (vehiculoId: number) =>
   useQuery({
     queryKey: ['resenas', vehiculoId],
-    queryFn:  () => api.getResenas(vehiculoId),
+    queryFn:  () => api.getResenasVehiculo(vehiculoId),
     staleTime: 30_000,
   })

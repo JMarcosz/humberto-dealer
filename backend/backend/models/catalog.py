@@ -8,6 +8,7 @@ from sqlalchemy.dialects import mysql
 class EstadoVehiculo(str, enum.Enum):
     DISPONIBLE            = "DISPONIBLE"
     RESERVADO             = "RESERVADO"
+    RENTADO               = "RENTADO"
     VENDIDO               = "VENDIDO"
     BORRADOR              = "BORRADOR"
     PENDIENTE_VALIDACION  = "PENDIENTE_VALIDACION"
