@@ -33,8 +33,16 @@ def crear_app():
                     conn.execute(text(sql))
                     conn.commit()
                     app.logger.info("Columnas de renta agregadas a vehiculos exitosamente.")
+
+                # Migración de coberturas_seguro
+                if 'coberturas_seguro' in inspector.get_table_names():
+                    existing_cob_cols = {c['name'] for c in inspector.get_columns('coberturas_seguro')}
+                    if 'reduccion_deposito_pct' not in existing_cob_cols:
+                        conn.execute(text("ALTER TABLE coberturas_seguro ADD COLUMN reduccion_deposito_pct DECIMAL(5,2) NOT NULL DEFAULT 0.00"))
+                        conn.commit()
+                        app.logger.info("Columna reduccion_deposito_pct agregada a coberturas_seguro.")
         except Exception as e:
-            app.logger.warning("Verificación de esquema vehiculos: %s", e)
+            app.logger.warning("Verificación de esquema: %s", e)
 
     return app
 

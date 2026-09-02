@@ -19,6 +19,38 @@ def seed():
         print("Creando tablas...")
         db.create_all()
 
+        # Migración automática de columnas previas al seed
+        try:
+            with db.engine.connect() as conn:
+                from sqlalchemy import inspect, text
+                inspector = inspect(db.engine)
+
+                if 'vehiculos' in inspector.get_table_names():
+                    existing_veh_cols = {c['name'] for c in inspector.get_columns('vehiculos')}
+                    alter_veh = []
+                    if 'disponible_para' not in existing_veh_cols:
+                        alter_veh.append("ADD COLUMN disponible_para ENUM('VENTA', 'RENTA', 'AMBOS') NOT NULL DEFAULT 'AMBOS'")
+                    if 'pasajeros' not in existing_veh_cols:
+                        alter_veh.append("ADD COLUMN pasajeros SMALLINT NOT NULL DEFAULT 5")
+                    if 'maletas_grandes' not in existing_veh_cols:
+                        alter_veh.append("ADD COLUMN maletas_grandes SMALLINT NOT NULL DEFAULT 2")
+                    if 'maletas_pequenas' not in existing_veh_cols:
+                        alter_veh.append("ADD COLUMN maletas_pequenas SMALLINT NOT NULL DEFAULT 2")
+                    if 'tiene_aire_acondicionado' not in existing_veh_cols:
+                        alter_veh.append("ADD COLUMN tiene_aire_acondicionado TINYINT(1) NOT NULL DEFAULT 1")
+                    if alter_veh:
+                        conn.execute(text(f"ALTER TABLE vehiculos {', '.join(alter_veh)}"))
+                        conn.commit()
+
+                if 'coberturas_seguro' in inspector.get_table_names():
+                    existing_cob_cols = {c['name'] for c in inspector.get_columns('coberturas_seguro')}
+                    if 'reduccion_deposito_pct' not in existing_cob_cols:
+                        conn.execute(text("ALTER TABLE coberturas_seguro ADD COLUMN reduccion_deposito_pct DECIMAL(5,2) NOT NULL DEFAULT 0.00"))
+                        conn.commit()
+                        print("Columna reduccion_deposito_pct agregada a coberturas_seguro.")
+        except Exception as e:
+            print(f"Nota de migración: {e}")
+
         # Roles
         if not Rol.query.first():
             db.session.add_all([
